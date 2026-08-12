@@ -8,8 +8,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { api, WorkoutPlan } from '../api/client';
+import { api, WorkoutPlan, WorkoutSession, WorkoutSummary } from '../api/client';
 import { theme } from '../theme';
+import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
 type Props = {
   token: string | null;
@@ -24,8 +25,11 @@ function repsLabel(plan: WorkoutPlan['exercises'][number]) {
 
 export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
+  const [session, setSession] = useState<WorkoutSession | null>(null);
+  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -34,6 +38,11 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         return;
       }
       try {
+        const active = await api.getActiveWorkoutSession(token);
+        if (active) {
+          setSession(active);
+          return;
+        }
         setPlan(await api.getTodayWorkout(token));
       } catch {
         setPlan(null);
@@ -46,6 +55,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const generate = async () => {
     if (!token) return;
     setGenerating(true);
+    setSummary(null);
     try {
       setPlan(await api.generateTodayWorkout(token));
     } catch (cause) {
@@ -59,6 +69,28 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     }
   };
 
+  const start = async () => {
+    if (!token || !plan) return;
+    setStarting(true);
+    try {
+      setSession(await api.startWorkoutSession(token, plan.id));
+    } catch (cause) {
+      Alert.alert('Treino não iniciado', cause instanceof Error ? cause.message : 'Tente novamente.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleFinished = (result: WorkoutSummary) => {
+    setSummary(result);
+    setSession(null);
+    setPlan(null);
+    Alert.alert(
+      'Treino concluído',
+      `${result.completedSets} séries · ${result.durationMinutes} min · volume ${result.totalVolumeKg.toFixed(1)} kg`,
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -68,23 +100,47 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     );
   }
 
+  if (session && token) {
+    return (
+      <WorkoutExecutionScreen
+        token={token}
+        session={session}
+        onSessionChange={setSession}
+        onFinished={handleFinished}
+      />
+    );
+  }
+
   if (!plan) {
     return (
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.eyebrow}>TREINO</Text>
-        <Text style={styles.title}>Seu treino de hoje</Text>
+        <Text style={styles.title}>{summary ? 'Treino concluído' : 'Seu treino de hoje'}</Text>
         <Text style={styles.subtitle}>
-          O plano usa objetivo, experiência, equipamentos, dores informadas e o check-in do dia antes de selecionar exercícios.
+          {summary
+            ? 'A sessão foi salva no seu histórico e já pode ser usada para acompanhar evolução e progressão.'
+            : 'O plano usa objetivo, experiência, equipamentos, dores informadas e o check-in do dia antes de selecionar exercícios.'}
         </Text>
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Antes de gerar</Text>
-          <Text style={styles.infoText}>Faça o check-in diário. Se houver sintomas novos ou sinal de risco, o treino automático poderá ser bloqueado para revisão profissional.</Text>
-        </View>
+        {summary ? (
+          <View style={styles.summaryCard}>
+            <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>séries</Text></View>
+            <View><Text style={styles.summaryValue}>{summary.durationMinutes} min</Text><Text style={styles.summaryLabel}>duração</Text></View>
+            <View><Text style={styles.summaryValue}>{summary.totalVolumeKg.toFixed(1)} kg</Text><Text style={styles.summaryLabel}>volume</Text></View>
+            <View><Text style={styles.summaryValue}>RPE {summary.perceivedEffort ?? '—'}</Text><Text style={styles.summaryLabel}>esforço</Text></View>
+          </View>
+        ) : (
+          <View style={styles.infoCard}>
+            <Text style={styles.infoTitle}>Antes de gerar</Text>
+            <Text style={styles.infoText}>Faça o check-in diário. Se houver sintomas novos ou sinal de risco, o treino automático poderá ser bloqueado para revisão profissional.</Text>
+          </View>
+        )}
 
-        <TouchableOpacity disabled={generating} onPress={generate} style={styles.primaryButton}>
-          {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de hoje</Text>}
-        </TouchableOpacity>
+        {!summary ? (
+          <TouchableOpacity disabled={generating} onPress={generate} style={styles.primaryButton}>
+            {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de hoje</Text>}
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity onPress={onNeedCheckin} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>Atualizar check-in</Text>
         </TouchableOpacity>
@@ -133,7 +189,11 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         </View>
       ))}
 
-      <TouchableOpacity disabled={generating} onPress={generate} style={styles.secondaryButton}>
+      <TouchableOpacity disabled={starting} onPress={start} style={styles.primaryButton}>
+        {starting ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Iniciar treino</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity disabled={generating || starting} onPress={generate} style={styles.secondaryButton}>
         <Text style={styles.secondaryButtonText}>{generating ? 'Recalculando...' : 'Recalcular com check-in atual'}</Text>
       </TouchableOpacity>
 
@@ -155,6 +215,9 @@ const styles = StyleSheet.create({
   infoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 18 },
   infoTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   infoText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 5 },
+  summaryCard: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 18 },
+  summaryValue: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
+  summaryLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
   secondaryButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
