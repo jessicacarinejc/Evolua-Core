@@ -6,13 +6,21 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "icon": "./assets/brand/icon.png",
+    "splash": {
+      "image": "./assets/brand/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#10294B"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "br.com.evoluacore.app"
+      "bundleIdentifier": "br.com.evoluacore.app",
+      "icon": "./assets/brand/icon.png"
     },
     "android": {
       "package": "br.com.evoluacore.app",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/brand/icon.png",
         "backgroundColor": "#10294B"
       }
     },
