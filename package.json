@@ -1,0 +1,21 @@
+{
+  "name": "evolua-core",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "mobile": "npm --workspace @evolua/mobile run start",
+    "android": "npm --workspace @evolua/mobile run android",
+    "ios": "npm --workspace @evolua/mobile run ios",
+    "api:dev": "npm --workspace @evolua/api run start:dev",
+    "api:build": "npm --workspace @evolua/api run build",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.19"
+  }
+}
