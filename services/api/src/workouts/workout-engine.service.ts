@@ -1,0 +1,357 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { DatabaseService } from '../database/database.service';
+import { WorkoutSafetyService } from './workout-safety.service';
+
+type ProfileRow = {
+  primary_goal: 'emagrecimento' | 'hipertrofia' | 'forca' | 'condicionamento' | 'manutencao';
+  training_level: 'iniciante' | 'intermediario' | 'avancado';
+  training_days_per_week: number;
+  session_minutes: number;
+};
+
+type CheckinRow = {
+  available_minutes: number;
+  recovery_score: number;
+  status: 'ready' | 'modified' | 'recovery' | 'professional_review_required';
+  pain_areas: string[];
+};
+
+type ExerciseRow = {
+  id: string;
+  slug: string;
+  name: string;
+  primary_muscle: string;
+  secondary_muscles: string[];
+  movement_pattern: string;
+  equipment: string[];
+  instructions: string | null;
+  safety_notes: string | null;
+  video_url: string | null;
+};
+
+type PlannedExercise = ExerciseRow & {
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSeconds: number | null;
+  restSeconds: number;
+  targetRir: number;
+};
+
+function normalize(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+const splitMuscles: Record<string, string[]> = {
+  'corpo inteiro': ['quadriceps', 'gluteos', 'posteriores', 'peitoral', 'costas', 'ombros', 'core'],
+  superior: ['peitoral', 'costas', 'ombros', 'biceps', 'triceps', 'core'],
+  inferior: ['quadriceps', 'gluteos', 'posteriores', 'panturrilhas', 'core'],
+  empurrar: ['peitoral', 'ombros', 'triceps'],
+  puxar: ['costas', 'biceps'],
+  pernas: ['quadriceps', 'gluteos', 'posteriores', 'panturrilhas'],
+  recuperacao: ['cardiorrespiratorio', 'core'],
+};
+
+@Injectable()
+export class WorkoutEngineService {
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly safety: WorkoutSafetyService,
+  ) {}
+
+  private async loadContext(userId: string) {
+    const profileResult = await this.db.query<ProfileRow>(
+      `SELECT
+         p.primary_goal,
+         p.training_level,
+         COALESCE(tp.training_days_per_week, 3) AS training_days_per_week,
+         COALESCE(tp.session_minutes, 45) AS session_minutes
+       FROM profiles p
+       LEFT JOIN training_preferences tp ON tp.user_id = p.user_id
+       WHERE p.user_id = $1`,
+      [userId],
+    );
+
+    if (!profileResult.rows[0]?.primary_goal || !profileResult.rows[0]?.training_level) {
+      throw new BadRequestException('Conclua a configuração inicial antes de gerar o treino.');
+    }
+
+    const checkinResult = await this.db.query<CheckinRow>(
+      `SELECT available_minutes, recovery_score, status, pain_areas
+       FROM daily_checkins
+       WHERE user_id = $1 AND checkin_date = CURRENT_DATE
+       LIMIT 1`,
+      [userId],
+    );
+
+    const checkin = checkinResult.rows[0];
+    if (!checkin) {
+      throw new BadRequestException('Faça o check-in de hoje antes de gerar o treino.');
+    }
+    if (checkin.status === 'professional_review_required') {
+      throw new BadRequestException('O check-in de hoje requer revisão profissional antes de gerar treino automático.');
+    }
+
+    const equipmentResult = await this.db.query<{ label: string }>(
+      `SELECT label FROM user_equipment WHERE user_id = $1 ORDER BY label`,
+      [userId],
+    );
+
+    const sessionsResult = await this.db.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total
+       FROM workout_sessions
+       WHERE user_id = $1 AND completed_at IS NOT NULL`,
+      [userId],
+    );
+
+    return {
+      profile: profileResult.rows[0],
+      checkin,
+      equipment: equipmentResult.rows.map((row) => row.label),
+      completedSessions: Number(sessionsResult.rows[0]?.total ?? 0),
+    };
+  }
+
+  private chooseSplit(daysPerWeek: number, completedSessions: number, recovery: CheckinRow['status']) {
+    if (recovery === 'recovery') return 'recuperacao';
+    if (daysPerWeek <= 3) return 'corpo inteiro';
+    if (daysPerWeek === 4) return completedSessions % 2 === 0 ? 'superior' : 'inferior';
+    const cycle = ['empurrar', 'puxar', 'pernas', 'superior', 'inferior'];
+    return cycle[completedSessions % cycle.length];
+  }
+
+  private equipmentMatches(exercise: ExerciseRow, equipment: string[]) {
+    if (!exercise.equipment.length) return true;
+    const normalized = new Set(equipment.map(normalize));
+    if (normalized.has('academia completa')) return true;
+
+    const aliases: Record<string, string[]> = {
+      halteres: ['halteres'],
+      barras: ['barras', 'barra'],
+      maquinas: ['maquinas', 'maquina'],
+      cabo: ['cabo', 'maquinas'],
+      'peso corporal': ['peso corporal'],
+      bicicleta: ['bicicleta', 'academia completa'],
+      elasticos: ['elasticos'],
+    };
+
+    return exercise.equipment.some((item) => {
+      const key = normalize(item);
+      const accepted = aliases[key] ?? [key];
+      return accepted.some((candidate) => normalized.has(candidate));
+    });
+  }
+
+  private prescription(goal: ProfileRow['primary_goal'], level: ProfileRow['training_level'], intensity: 'leve' | 'moderada' | 'alta', isCardio: boolean) {
+    if (isCardio) {
+      return { sets: 1, repsMin: null, repsMax: null, durationSeconds: intensity === 'leve' ? 600 : 480, restSeconds: 60, targetRir: 4 };
+    }
+
+    const sets = intensity === 'leve' ? 2 : level === 'avancado' && intensity === 'alta' ? 4 : 3;
+    const ranges = goal === 'forca'
+      ? [5, 8]
+      : goal === 'hipertrofia'
+        ? [8, 12]
+        : goal === 'condicionamento' || goal === 'emagrecimento'
+          ? [10, 15]
+          : [8, 12];
+
+    return {
+      sets,
+      repsMin: ranges[0],
+      repsMax: ranges[1],
+      durationSeconds: null,
+      restSeconds: goal === 'forca' ? 120 : intensity === 'alta' ? 90 : 75,
+      targetRir: intensity === 'leve' ? 4 : intensity === 'moderada' ? 3 : 2,
+    };
+  }
+
+  private async catalog() {
+    const result = await this.db.query<ExerciseRow>(
+      `SELECT
+         e.id, e.slug, e.name, e.primary_muscle, e.secondary_muscles,
+         e.movement_pattern, e.equipment, e.instructions, e.safety_notes,
+         COALESCE(v.url, e.video_url) AS video_url
+       FROM exercises e
+       LEFT JOIN LATERAL (
+         SELECT ev.url
+         FROM exercise_videos ev
+         WHERE ev.exercise_id = e.id
+         ORDER BY ev.is_primary DESC, ev.created_at ASC
+         LIMIT 1
+       ) v ON true
+       WHERE e.active = true
+       ORDER BY e.name`,
+    );
+    return result.rows;
+  }
+
+  async generateToday(userId: string) {
+    const { profile, checkin, equipment, completedSessions } = await this.loadContext(userId);
+    const split = this.chooseSplit(profile.training_days_per_week, completedSessions, checkin.status);
+    const safety = this.safety.evaluate({
+      goal: profile.primary_goal,
+      availableMinutes: checkin.available_minutes,
+      recoveryScore: checkin.recovery_score,
+      jointPain: checkin.pain_areas,
+      availableEquipment: equipment,
+    });
+
+    const all = await this.catalog();
+    const targetMuscles = new Set(splitMuscles[split] ?? splitMuscles['corpo inteiro']);
+    const safe = all
+      .filter((exercise) => !safety.blockedPatterns.includes(exercise.movement_pattern))
+      .filter((exercise) => this.equipmentMatches(exercise, equipment));
+
+    const prioritized = [
+      ...safe.filter((exercise) => targetMuscles.has(normalize(exercise.primary_muscle))),
+      ...safe.filter((exercise) => !targetMuscles.has(normalize(exercise.primary_muscle))),
+    ].filter((exercise, index, list) => list.findIndex((item) => item.id === exercise.id) === index);
+
+    const limit = checkin.available_minutes <= 30 ? 4 : checkin.available_minutes <= 45 ? 5 : checkin.available_minutes <= 60 ? 6 : 7;
+    const selected = prioritized.slice(0, limit);
+
+    if (selected.length < 3) {
+      throw new BadRequestException('Não há exercícios compatíveis suficientes para gerar um treino seguro com os dados atuais.');
+    }
+
+    const planned: PlannedExercise[] = selected.map((exercise) => ({
+      ...exercise,
+      ...this.prescription(
+        profile.primary_goal,
+        profile.training_level,
+        safety.allowedIntensity,
+        exercise.movement_pattern === 'cardio-baixo-impacto',
+      ),
+    }));
+
+    const planId = await this.db.transaction(async (client) => {
+      await client.query(
+        `UPDATE workout_plans
+         SET status = 'cancelled'
+         WHERE user_id = $1 AND planned_date = CURRENT_DATE AND status = 'draft'`,
+        [userId],
+      );
+
+      const planResult = await client.query<{ id: string }>(
+        `INSERT INTO workout_plans (
+           user_id, status, goal, planned_date, estimated_minutes, generation_source, safety_snapshot
+         ) VALUES ($1, 'draft', $2, CURRENT_DATE, $3, 'rules', $4::jsonb)
+         RETURNING id`,
+        [userId, profile.primary_goal, checkin.available_minutes, JSON.stringify({ split, recoveryScore: checkin.recovery_score, ...safety })],
+      );
+      const id = planResult.rows[0].id;
+
+      for (let index = 0; index < planned.length; index += 1) {
+        const exercise = planned[index];
+        await client.query(
+          `INSERT INTO workout_plan_exercises (
+             workout_plan_id, exercise_id, sequence, sets, reps_min, reps_max,
+             duration_seconds, rest_seconds, target_rir, notes
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [
+            id,
+            exercise.id,
+            index + 1,
+            exercise.sets,
+            exercise.repsMin,
+            exercise.repsMax,
+            exercise.durationSeconds,
+            exercise.restSeconds,
+            exercise.targetRir,
+            exercise.safety_notes,
+          ],
+        );
+      }
+
+      return id;
+    });
+
+    return this.getPlan(userId, planId);
+  }
+
+  async getToday(userId: string) {
+    const result = await this.db.query<{ id: string }>(
+      `SELECT id
+       FROM workout_plans
+       WHERE user_id = $1 AND planned_date = CURRENT_DATE AND status IN ('draft','active')
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+    if (!result.rows[0]) return { plan: null };
+    return { plan: await this.getPlan(userId, result.rows[0].id) };
+  }
+
+  private async getPlan(userId: string, planId: string) {
+    const planResult = await this.db.query<{
+      id: string;
+      goal: string;
+      estimated_minutes: number;
+      safety_snapshot: Record<string, unknown>;
+    }>(
+      `SELECT id, goal, estimated_minutes, safety_snapshot
+       FROM workout_plans
+       WHERE id = $1 AND user_id = $2`,
+      [planId, userId],
+    );
+    const plan = planResult.rows[0];
+    if (!plan) throw new NotFoundException('Treino não encontrado.');
+
+    const exerciseResult = await this.db.query<{
+      id: string;
+      name: string;
+      primary_muscle: string;
+      instructions: string | null;
+      safety_notes: string | null;
+      video_url: string | null;
+      sequence: number;
+      sets: number;
+      reps_min: number | null;
+      reps_max: number | null;
+      duration_seconds: number | null;
+      rest_seconds: number;
+      target_rir: number;
+    }>(
+      `SELECT
+         e.id, e.name, e.primary_muscle, e.instructions, e.safety_notes,
+         COALESCE(v.url, e.video_url) AS video_url,
+         wpe.sequence, wpe.sets, wpe.reps_min, wpe.reps_max,
+         wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir
+       FROM workout_plan_exercises wpe
+       JOIN exercises e ON e.id = wpe.exercise_id
+       LEFT JOIN LATERAL (
+         SELECT ev.url
+         FROM exercise_videos ev
+         WHERE ev.exercise_id = e.id
+         ORDER BY ev.is_primary DESC, ev.created_at ASC
+         LIMIT 1
+       ) v ON true
+       WHERE wpe.workout_plan_id = $1
+       ORDER BY wpe.sequence`,
+      [planId],
+    );
+
+    return {
+      id: plan.id,
+      goal: plan.goal,
+      estimatedMinutes: plan.estimated_minutes,
+      safety: plan.safety_snapshot,
+      exercises: exerciseResult.rows.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        primaryMuscle: exercise.primary_muscle,
+        instructions: exercise.instructions,
+        safetyNotes: exercise.safety_notes,
+        videoUrl: exercise.video_url,
+        order: exercise.sequence,
+        sets: exercise.sets,
+        repsMin: exercise.reps_min,
+        repsMax: exercise.reps_max,
+        durationSeconds: exercise.duration_seconds,
+        restSeconds: exercise.rest_seconds,
+        targetRir: exercise.target_rir,
+      })),
+    };
+  }
+}

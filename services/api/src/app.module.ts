@@ -5,10 +5,13 @@ import { AuthService } from './auth/auth.service';
 import { DailyCheckinController } from './checkins/daily-checkin.controller';
 import { DailyCheckinService } from './checkins/daily-checkin.service';
 import { DatabaseService } from './database/database.service';
+import { ExercisesController } from './exercises/exercises.controller';
+import { ExercisesService } from './exercises/exercises.service';
 import { HealthController } from './health.controller';
 import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingSafetyService } from './onboarding/onboarding-safety.service';
 import { OnboardingService } from './onboarding/onboarding.service';
+import { WorkoutEngineService } from './workouts/workout-engine.service';
 import { WorkoutsController } from './workouts/workouts.controller';
 import { WorkoutSafetyService } from './workouts/workout-safety.service';
 
@@ -18,6 +21,7 @@ import { WorkoutSafetyService } from './workouts/workout-safety.service';
     AuthController,
     OnboardingController,
     DailyCheckinController,
+    ExercisesController,
     WorkoutsController,
   ],
   providers: [
@@ -27,7 +31,9 @@ import { WorkoutSafetyService } from './workouts/workout-safety.service';
     OnboardingSafetyService,
     OnboardingService,
     DailyCheckinService,
+    ExercisesService,
     WorkoutSafetyService,
+    WorkoutEngineService,
   ],
 })
 export class AppModule {}

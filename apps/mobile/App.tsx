@@ -16,6 +16,7 @@ import { OnboardingData } from './src/onboarding/types';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DailyCheckinScreen } from './src/screens/DailyCheckinScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { WorkoutScreen } from './src/screens/WorkoutScreen';
 import { theme } from './src/theme';
 
 type Tab = 'Hoje' | 'Treino' | 'Nutrição' | 'Evolução' | 'Perfil';
@@ -48,7 +49,17 @@ function statusText(recovery: Recovery) {
   return 'revisão recomendada';
 }
 
-function TodayScreen({ profile, recovery, onCheckin }: { profile: OnboardingData | null; recovery: Recovery; onCheckin: () => void }) {
+function TodayScreen({
+  profile,
+  recovery,
+  onCheckin,
+  onOpenWorkout,
+}: {
+  profile: OnboardingData | null;
+  recovery: Recovery;
+  onCheckin: () => void;
+  onOpenWorkout: () => void;
+}) {
   const firstName = profile?.displayName.trim().split(' ')[0];
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -79,8 +90,12 @@ function TodayScreen({ profile, recovery, onCheckin }: { profile: OnboardingData
           <View><Text style={styles.heroStatValue}>{profile?.trainingDaysPerWeek ?? 3}x</Text><Text style={styles.heroStatLabel}>por semana</Text></View>
           <View><Text style={styles.heroStatValue}>{profile?.trainingLevel || '—'}</Text><Text style={styles.heroStatLabel}>nível</Text></View>
         </View>
-        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85} onPress={onCheckin}>
-          <Text style={styles.primaryButtonText}>{recovery ? 'Atualizar check-in' : 'Fazer check-in e preparar treino'}</Text>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          activeOpacity={0.85}
+          onPress={recovery ? onOpenWorkout : onCheckin}
+        >
+          <Text style={styles.primaryButtonText}>{recovery ? 'Abrir treino de hoje' : 'Fazer check-in e preparar treino'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -120,7 +135,7 @@ function TodayScreen({ profile, recovery, onCheckin }: { profile: OnboardingData
 function PlaceholderScreen({ title }: { title: Tab }) {
   const descriptions: Record<Tab, string> = {
     Hoje: '',
-    Treino: 'Treinos adaptativos, histórico de cargas, vídeos, execução guiada e recuperação.',
+    Treino: '',
     Nutrição: 'Plano alimentar, diário, macros, restrições, hidratação e substituições.',
     Evolução: 'Peso, medidas, fotos, aderência, cargas e indicadores de progresso.',
     Perfil: 'Objetivos, saúde, preferências, equipamentos, consentimentos e conta.',
@@ -183,15 +198,26 @@ export default function App() {
     if (!token) throw new Error('Sessão não encontrada. Entre novamente.');
     const result = await api.saveDailyCheckin(token, input);
     setRecovery(result.evaluation);
+    setActiveTab('Treino');
     setStage('app');
   };
 
-  const screen = useMemo(
-    () => activeTab === 'Hoje'
-      ? <TodayScreen profile={profile} recovery={recovery} onCheckin={() => setStage('checkin')} />
-      : <PlaceholderScreen title={activeTab} />,
-    [activeTab, profile, recovery],
-  );
+  const screen = useMemo(() => {
+    if (activeTab === 'Hoje') {
+      return (
+        <TodayScreen
+          profile={profile}
+          recovery={recovery}
+          onCheckin={() => setStage('checkin')}
+          onOpenWorkout={() => setActiveTab('Treino')}
+        />
+      );
+    }
+    if (activeTab === 'Treino') {
+      return <WorkoutScreen token={token} onNeedCheckin={() => setStage('checkin')} />;
+    }
+    return <PlaceholderScreen title={activeTab} />;
+  }, [activeTab, profile, recovery, token]);
 
   if (stage === 'boot') {
     return <View style={styles.boot}><ActivityIndicator size="large" color={theme.colors.lime} /><Text style={styles.bootText}>EVOLUA CORE</Text></View>;
