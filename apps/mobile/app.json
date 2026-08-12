@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Evolua Core",
+    "slug": "evolua-core",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "br.com.evoluacore.app"
+    },
+    "android": {
+      "package": "br.com.evoluacore.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#10294B"
+      }
+    },
+    "extra": {
+      "brandName": "Evolua Core",
+      "tagline": "Treino. Nutrição. Saúde. Evolução."
+    }
+  }
+}
