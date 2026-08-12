@@ -12,10 +12,21 @@
       "resizeMode": "contain",
       "backgroundColor": "#10294B"
     },
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "br.com.evoluacore.app",
-      "icon": "./assets/brand/icon.png"
+      "icon": "./assets/brand/icon.png",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "br.com.evoluacore.app",

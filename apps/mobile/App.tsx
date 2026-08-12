@@ -1,6 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -8,13 +10,18 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { api, DailyCheckinInput, DailyCheckinResult } from './src/api/client';
+import { sessionStore } from './src/auth/session';
 import { OnboardingData } from './src/onboarding/types';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { DailyCheckinScreen } from './src/screens/DailyCheckinScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { theme } from './src/theme';
 
 type Tab = 'Hoje' | 'Treino' | 'Nutrição' | 'Evolução' | 'Perfil';
-type AppStage = 'auth' | 'onboarding' | 'app';
+type AppStage = 'boot' | 'auth' | 'onboarding' | 'checkin' | 'app';
+
+type Recovery = DailyCheckinResult['evaluation'] | null;
 
 const tabs: Tab[] = ['Hoje', 'Treino', 'Nutrição', 'Evolução', 'Perfil'];
 
@@ -33,7 +40,15 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
   );
 }
 
-function TodayScreen({ profile }: { profile: OnboardingData | null }) {
+function statusText(recovery: Recovery) {
+  if (!recovery) return 'check-in pendente';
+  if (recovery.status === 'ready') return 'pronto para treinar';
+  if (recovery.status === 'modified') return 'treino adaptado';
+  if (recovery.status === 'recovery') return 'recuperação';
+  return 'revisão recomendada';
+}
+
+function TodayScreen({ profile, recovery, onCheckin }: { profile: OnboardingData | null; recovery: Recovery; onCheckin: () => void }) {
   const firstName = profile?.displayName.trim().split(' ')[0];
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -46,7 +61,7 @@ function TodayScreen({ profile }: { profile: OnboardingData | null }) {
       </View>
 
       <Text style={styles.hello}>{firstName ? `Olá, ${firstName} 👋` : 'Olá 👋'}</Text>
-      <Text style={styles.subtitle}>Seu plano diário será ajustado conforme rotina, recuperação, histórico e regras de segurança.</Text>
+      <Text style={styles.subtitle}>Seu plano diário considera rotina, recuperação, histórico e regras de segurança.</Text>
 
       <View style={styles.heroCard}>
         <View style={styles.heroTopRow}>
@@ -55,8 +70,8 @@ function TodayScreen({ profile }: { profile: OnboardingData | null }) {
             <Text style={styles.heroTitle}>{profile?.primaryGoal === 'hipertrofia' ? 'Força e Hipertrofia' : 'Treino personalizado'}</Text>
           </View>
           <View style={styles.recoveryBadge}>
-            <Text style={styles.recoveryValue}>—</Text>
-            <Text style={styles.recoveryLabel}>check-in pendente</Text>
+            <Text style={styles.recoveryValue}>{recovery ? `${recovery.recoveryScore}%` : '—'}</Text>
+            <Text style={styles.recoveryLabel}>{statusText(recovery)}</Text>
           </View>
         </View>
         <View style={styles.heroStats}>
@@ -64,17 +79,24 @@ function TodayScreen({ profile }: { profile: OnboardingData | null }) {
           <View><Text style={styles.heroStatValue}>{profile?.trainingDaysPerWeek ?? 3}x</Text><Text style={styles.heroStatLabel}>por semana</Text></View>
           <View><Text style={styles.heroStatValue}>{profile?.trainingLevel || '—'}</Text><Text style={styles.heroStatLabel}>nível</Text></View>
         </View>
-        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85}>
-          <Text style={styles.primaryButtonText}>Fazer check-in e gerar treino</Text>
+        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85} onPress={onCheckin}>
+          <Text style={styles.primaryButtonText}>{recovery ? 'Atualizar check-in' : 'Fazer check-in e preparar treino'}</Text>
         </TouchableOpacity>
       </View>
+
+      {recovery?.notes?.length ? (
+        <View style={styles.recoveryCard}>
+          <Text style={styles.cardEyebrow}>RECUPERAÇÃO</Text>
+          {recovery.notes.map((note) => <Text key={note} style={styles.cardBody}>• {note}</Text>)}
+        </View>
+      ) : null}
 
       <Text style={styles.sectionTitle}>Seu dia</Text>
       <View style={styles.metricGrid}>
         <MetricCard label="Energia" value="—" detail="meta será calculada" />
         <MetricCard label="Proteína" value="—" detail="meta individual" />
         <MetricCard label="Água" value="0 L" detail="registrar consumo" />
-        <MetricCard label="Treino" value="Pendente" detail="check-in necessário" />
+        <MetricCard label="Recuperação" value={recovery ? `${recovery.recoveryScore}%` : 'Pendente'} detail={statusText(recovery)} />
       </View>
 
       <View style={styles.sectionCard}>
@@ -85,13 +107,6 @@ function TodayScreen({ profile }: { profile: OnboardingData | null }) {
         <Text style={styles.progressText}>Calorias</Text><ProgressBar value={0} total={1} />
         <Text style={styles.progressText}>Proteína</Text><ProgressBar value={0} total={1} />
         <Text style={styles.progressText}>Água</Text><ProgressBar value={0} total={1} />
-      </View>
-
-      <View style={styles.sectionCard}>
-        <Text style={styles.cardEyebrow}>CHECK-IN</Text>
-        <Text style={styles.cardTitle}>Como você está hoje?</Text>
-        <Text style={styles.cardBody}>Sono, energia, dor muscular, dor articular e tempo disponível serão considerados antes de gerar o treino.</Text>
-        <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.85}><Text style={styles.secondaryButtonText}>Fazer check-in diário</Text></TouchableOpacity>
       </View>
 
       <View style={styles.noticeCard}>
@@ -120,18 +135,71 @@ function PlaceholderScreen({ title }: { title: Tab }) {
 }
 
 export default function App() {
-  const [stage, setStage] = useState<AppStage>('auth');
+  const [stage, setStage] = useState<AppStage>('boot');
   const [activeTab, setActiveTab] = useState<Tab>('Hoje');
   const [profile, setProfile] = useState<OnboardingData | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState<Recovery>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const storedToken = await sessionStore.get();
+      if (!storedToken) {
+        setStage('auth');
+        return;
+      }
+      try {
+        const user = await api.me(storedToken);
+        setToken(storedToken);
+        setProfile(user.profile);
+        setStage(user.onboardingCompleted ? 'app' : 'onboarding');
+      } catch {
+        await sessionStore.clear();
+        setStage('auth');
+      }
+    })();
+  }, []);
+
+  const handleAuth = async (mode: 'login' | 'register', email: string, password: string) => {
+    const response = await api.authenticate(mode, email, password);
+    await sessionStore.save(response.token);
+    setToken(response.token);
+    setProfile(response.user.profile);
+    setStage(response.user.onboardingCompleted ? 'app' : 'onboarding');
+  };
+
+  const handleOnboarding = async (data: OnboardingData) => {
+    if (!token) return;
+    try {
+      await api.saveOnboarding(token, data);
+      setProfile(data);
+      setStage('checkin');
+    } catch (cause) {
+      Alert.alert('Não foi possível salvar', cause instanceof Error ? cause.message : 'Tente novamente.');
+    }
+  };
+
+  const handleCheckin = async (input: DailyCheckinInput) => {
+    if (!token) throw new Error('Sessão não encontrada. Entre novamente.');
+    const result = await api.saveDailyCheckin(token, input);
+    setRecovery(result.evaluation);
+    setStage('app');
+  };
 
   const screen = useMemo(
-    () => activeTab === 'Hoje' ? <TodayScreen profile={profile} /> : <PlaceholderScreen title={activeTab} />,
-    [activeTab, profile],
+    () => activeTab === 'Hoje'
+      ? <TodayScreen profile={profile} recovery={recovery} onCheckin={() => setStage('checkin')} />
+      : <PlaceholderScreen title={activeTab} />,
+    [activeTab, profile, recovery],
   );
 
-  if (stage === 'auth') return <AuthScreen onContinue={() => setStage('onboarding')} />;
-  if (stage === 'onboarding') {
-    return <OnboardingScreen onFinish={(data) => { setProfile(data); setStage('app'); }} />;
+  if (stage === 'boot') {
+    return <View style={styles.boot}><ActivityIndicator size="large" color={theme.colors.lime} /><Text style={styles.bootText}>EVOLUA CORE</Text></View>;
+  }
+  if (stage === 'auth') return <AuthScreen onSubmit={handleAuth} />;
+  if (stage === 'onboarding') return <OnboardingScreen onFinish={handleOnboarding} />;
+  if (stage === 'checkin') {
+    return <DailyCheckinScreen defaultMinutes={profile?.sessionMinutes ?? 45} defaultPainAreas={profile?.painAreas ?? []} onSubmit={handleCheckin} onCancel={() => setStage('app')} />;
   }
 
   return (
@@ -154,6 +222,8 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  boot: { flex: 1, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  bootText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', letterSpacing: 1.6 },
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
   app: { flex: 1 },
   content: { padding: theme.spacing.lg, paddingBottom: 40 },
@@ -168,14 +238,15 @@ const styles = StyleSheet.create({
   heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   heroEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
   heroTitle: { color: theme.colors.white, fontSize: 23, fontWeight: '800', marginTop: 6, maxWidth: 220 },
-  recoveryBadge: { alignItems: 'flex-end' },
+  recoveryBadge: { alignItems: 'flex-end', maxWidth: 115 },
   recoveryValue: { color: theme.colors.lime, fontSize: 24, fontWeight: '900' },
-  recoveryLabel: { color: '#C6D2E3', fontSize: 10 },
+  recoveryLabel: { color: '#C6D2E3', fontSize: 10, textAlign: 'right' },
   heroStats: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 24 },
   heroStatValue: { color: theme.colors.white, fontSize: 15, fontWeight: '800', textTransform: 'capitalize' },
   heroStatLabel: { color: '#B9C8DA', fontSize: 11, marginTop: 3 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
+  recoveryCard: { backgroundColor: '#EEF7DE', borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
   sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: '800', marginTop: 28, marginBottom: 14 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   metricCard: { width: '48%', backgroundColor: theme.colors.surface, borderRadius: theme.radius.md, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: theme.colors.border },
@@ -191,8 +262,6 @@ const styles = StyleSheet.create({
   progressText: { color: theme.colors.textMuted, fontSize: 12, marginTop: 10, marginBottom: 6 },
   progressTrack: { height: 8, borderRadius: 8, backgroundColor: '#EAF0F5', overflow: 'hidden' },
   progressValue: { height: 8, borderRadius: 8, backgroundColor: theme.colors.lime },
-  secondaryButton: { marginTop: 18, borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  secondaryButtonText: { color: theme.colors.navy, fontWeight: '800' },
   noticeCard: { backgroundColor: '#EDF3E2', borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
   noticeTitle: { color: theme.colors.navy, fontSize: 14, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5 },

@@ -1,32 +1,36 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthenticatedRequest, AuthGuard } from '../auth/auth.guard';
 import { OnboardingDto } from './onboarding.dto';
 import { OnboardingSafetyService } from './onboarding-safety.service';
+import { OnboardingService } from './onboarding.service';
 
 @Controller('onboarding')
 export class OnboardingController {
-  constructor(private readonly safety: OnboardingSafetyService) {}
+  constructor(
+    private readonly safety: OnboardingSafetyService,
+    private readonly onboarding: OnboardingService,
+  ) {}
 
   @Post('validate')
   validate(@Body() input: OnboardingDto) {
     const safety = this.safety.evaluate(input);
-
     return {
       accepted: true,
       safety,
-      normalizedProfile: {
-        displayName: input.displayName.trim(),
-        birthDate: input.birthDate,
-        heightCm: input.heightCm,
-        weightKg: input.weightKg,
-        primaryGoal: input.primaryGoal,
-        trainingLevel: input.trainingLevel,
-        trainingDaysPerWeek: input.trainingDaysPerWeek,
-        sessionMinutes: input.sessionMinutes,
-        equipment: input.equipment,
-      },
-      next: safety.status === 'professional_review_required'
-        ? 'professional_review'
-        : 'daily_checkin',
+      next: safety.status === 'professional_review_required' ? 'professional_review' : 'daily_checkin',
+    };
+  }
+
+  @UseGuards(AuthGuard)
+  @Post()
+  async save(@Req() request: AuthenticatedRequest, @Body() input: OnboardingDto) {
+    const safety = this.safety.evaluate(input);
+    const result = await this.onboarding.save(request.auth.userId, input, safety);
+    return {
+      accepted: true,
+      safety,
+      ...result,
+      next: safety.status === 'professional_review_required' ? 'professional_review' : 'daily_checkin',
     };
   }
 }
