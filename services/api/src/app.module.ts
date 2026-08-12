@@ -14,6 +14,7 @@ import { OnboardingService } from './onboarding/onboarding.service';
 import { WorkoutEngineService } from './workouts/workout-engine.service';
 import { WorkoutsController } from './workouts/workouts.controller';
 import { WorkoutSafetyService } from './workouts/workout-safety.service';
+import { WorkoutSessionService } from './workouts/workout-session.service';
 
 @Module({
   controllers: [
@@ -34,6 +35,7 @@ import { WorkoutSafetyService } from './workouts/workout-safety.service';
     ExercisesService,
     WorkoutSafetyService,
     WorkoutEngineService,
+    WorkoutSessionService,
   ],
 })
 export class AppModule {}
