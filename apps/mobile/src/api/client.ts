@@ -63,6 +63,55 @@ export type WorkoutPlan = {
   exercises: WorkoutExercise[];
 };
 
+export type WorkoutSetRecord = {
+  id: string;
+  setNumber: number;
+  repetitions: number | null;
+  loadKg: number | null;
+  durationSeconds: number | null;
+  rir: number | null;
+  completed: boolean;
+  completedAt: string | null;
+};
+
+export type WorkoutSessionExercise = {
+  id: string;
+  name: string;
+  primaryMuscle: string;
+  instructions: string | null;
+  videoUrl: string | null;
+  order: number;
+  plannedSets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSeconds: number | null;
+  restSeconds: number;
+  targetRir: number;
+  sets: WorkoutSetRecord[];
+};
+
+export type WorkoutSession = {
+  id: string;
+  startedAt: string;
+  completedAt: string | null;
+  perceivedEffort: number | null;
+  feedback: string | null;
+  plan: {
+    id: string;
+    goal: string;
+    estimatedMinutes: number | null;
+    safety: WorkoutPlan['safety'];
+  };
+  exercises: WorkoutSessionExercise[];
+};
+
+export type WorkoutSummary = {
+  completedSets: number;
+  totalVolumeKg: number;
+  durationMinutes: number;
+  perceivedEffort: number | null;
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -150,6 +199,45 @@ export const api = {
 
   async generateTodayWorkout(token: string): Promise<WorkoutPlan> {
     return request<WorkoutPlan>('/workouts/today', { method: 'POST' }, token);
+  },
+
+  async getActiveWorkoutSession(token: string): Promise<WorkoutSession | null> {
+    const response = await request<{ session: WorkoutSession | null }>('/workouts/sessions/active', {}, token);
+    return response.session;
+  },
+
+  async startWorkoutSession(token: string, planId: string): Promise<WorkoutSession> {
+    return request<WorkoutSession>(`/workouts/sessions/start/${planId}`, { method: 'POST' }, token);
+  },
+
+  async saveWorkoutSet(
+    token: string,
+    sessionId: string,
+    input: {
+      exerciseId: string;
+      setNumber: number;
+      repetitions?: number;
+      loadKg?: number;
+      durationSeconds?: number;
+      rir?: number;
+      completed?: boolean;
+    },
+  ): Promise<WorkoutSession> {
+    return request<WorkoutSession>(`/workouts/sessions/${sessionId}/sets`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }, token);
+  },
+
+  async completeWorkoutSession(
+    token: string,
+    sessionId: string,
+    input: { perceivedEffort: number; feedback?: string },
+  ): Promise<{ session: WorkoutSession; summary: WorkoutSummary }> {
+    return request(`/workouts/sessions/${sessionId}/complete`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, token);
   },
 
   async listExercises(token: string) {
