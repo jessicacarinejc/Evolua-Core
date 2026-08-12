@@ -1,0 +1,16 @@
+node_modules/
+.expo/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+*.keystore
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+android/.gradle/
+ios/Pods/
