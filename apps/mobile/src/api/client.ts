@@ -33,6 +33,36 @@ export type DailyCheckinResult = {
   };
 };
 
+export type WorkoutExercise = {
+  id: string;
+  name: string;
+  primaryMuscle: string;
+  instructions: string | null;
+  safetyNotes: string | null;
+  videoUrl: string | null;
+  order: number;
+  sets: number;
+  repsMin: number | null;
+  repsMax: number | null;
+  durationSeconds: number | null;
+  restSeconds: number;
+  targetRir: number;
+};
+
+export type WorkoutPlan = {
+  id: string;
+  goal: string;
+  estimatedMinutes: number;
+  safety: {
+    split?: string;
+    recoveryScore?: number;
+    allowedIntensity?: 'leve' | 'moderada' | 'alta';
+    blockedPatterns?: string[];
+    notes?: string[];
+  };
+  exercises: WorkoutExercise[];
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -111,6 +141,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }, token);
+  },
+
+  async getTodayWorkout(token: string): Promise<WorkoutPlan | null> {
+    const response = await request<{ plan: WorkoutPlan | null }>('/workouts/today', {}, token);
+    return response.plan;
+  },
+
+  async generateTodayWorkout(token: string): Promise<WorkoutPlan> {
+    return request<WorkoutPlan>('/workouts/today', { method: 'POST' }, token);
+  },
+
+  async listExercises(token: string) {
+    return request('/exercises', {}, token);
   },
 
   async logout(token: string) {
