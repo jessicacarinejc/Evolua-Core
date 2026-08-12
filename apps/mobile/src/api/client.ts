@@ -40,6 +40,8 @@ export type WorkoutExercise = {
   instructions: string | null;
   safetyNotes: string | null;
   videoUrl: string | null;
+  videoLicense?: string | null;
+  videoAttribution?: string | null;
   order: number;
   sets: number;
   repsMin: number | null;
@@ -55,6 +57,7 @@ export type WorkoutPlan = {
   estimatedMinutes: number;
   safety: {
     split?: string;
+    routine?: string;
     recoveryScore?: number;
     allowedIntensity?: 'leve' | 'moderada' | 'alta';
     blockedPatterns?: string[];
@@ -80,6 +83,8 @@ export type WorkoutSessionExercise = {
   primaryMuscle: string;
   instructions: string | null;
   videoUrl: string | null;
+  videoLicense?: string | null;
+  videoAttribution?: string | null;
   order: number;
   plannedSets: number;
   repsMin: number | null;
@@ -199,6 +204,10 @@ export const api = {
 
   async generateTodayWorkout(token: string): Promise<WorkoutPlan> {
     return request<WorkoutPlan>('/workouts/today', { method: 'POST' }, token);
+  },
+
+  async generateTaiChi15Workout(token: string): Promise<WorkoutPlan> {
+    return request<WorkoutPlan>('/workouts/tai-chi/15-min', { method: 'POST' }, token);
   },
 
   async getActiveWorkoutSession(token: string): Promise<WorkoutSession | null> {
