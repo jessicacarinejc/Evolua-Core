@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,6 +30,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [generatingTaiChi, setGeneratingTaiChi] = useState(false);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -69,6 +71,23 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     }
   };
 
+  const generateTaiChi = async () => {
+    if (!token) return;
+    setGeneratingTaiChi(true);
+    setSummary(null);
+    try {
+      setPlan(await api.generateTaiChi15Workout(token));
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Não foi possível preparar o Tai Chi.';
+      Alert.alert('Tai Chi não preparado', message, [
+        { text: 'Fechar', style: 'cancel' },
+        { text: 'Fazer check-in', onPress: onNeedCheckin },
+      ]);
+    } finally {
+      setGeneratingTaiChi(false);
+    }
+  };
+
   const start = async () => {
     if (!token || !plan) return;
     setStarting(true);
@@ -89,6 +108,14 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
       'Treino concluído',
       `${result.completedSets} séries · ${result.durationMinutes} min · volume ${result.totalVolumeKg.toFixed(1)} kg`,
     );
+  };
+
+  const openVideo = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
+    }
   };
 
   if (loading) {
@@ -141,6 +168,18 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
             {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de hoje</Text>}
           </TouchableOpacity>
         ) : null}
+
+        {!summary ? (
+          <View style={styles.taiChiCard}>
+            <Text style={styles.taiChiEyebrow}>TAI CHI · 15 MINUTOS</Text>
+            <Text style={styles.taiChiTitle}>Movimento contínuo para elevar o gasto energético</Text>
+            <Text style={styles.taiChiText}>Quatro blocos guiados: Despertar do Qi (3 min), Mãos como Nuvens (5 min), Repelir o Macaco (4 min) e Abraçar a Árvore (3 min). A postura é adaptada ao check-in e às dores informadas.</Text>
+            <TouchableOpacity disabled={generatingTaiChi} onPress={generateTaiChi} style={styles.taiChiButton}>
+              {generatingTaiChi ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.taiChiButtonText}>Preparar Tai Chi de 15 min</Text>}
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         <TouchableOpacity onPress={onNeedCheckin} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>Atualizar check-in</Text>
         </TouchableOpacity>
@@ -182,7 +221,14 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
 
           {exercise.instructions ? <Text style={styles.instructions}>{exercise.instructions}</Text> : null}
           {exercise.videoUrl ? (
-            <View style={styles.videoBadge}><Text style={styles.videoBadgeText}>Vídeo disponível</Text></View>
+            <>
+              <TouchableOpacity onPress={() => void openVideo(exercise.videoUrl!)} style={styles.videoBadge}>
+                <Text style={styles.videoBadgeText}>Abrir vídeo de referência</Text>
+              </TouchableOpacity>
+              {exercise.videoAttribution ? (
+                <Text style={styles.videoCredit}>{exercise.videoAttribution}{exercise.videoLicense ? ` · ${exercise.videoLicense}` : ''}</Text>
+              ) : null}
+            </>
           ) : (
             <Text style={styles.videoPending}>Vídeo demonstrativo será vinculado ao catálogo.</Text>
           )}
@@ -196,6 +242,12 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
       <TouchableOpacity disabled={generating || starting} onPress={generate} style={styles.secondaryButton}>
         <Text style={styles.secondaryButtonText}>{generating ? 'Recalculando...' : 'Recalcular com check-in atual'}</Text>
       </TouchableOpacity>
+
+      {plan.safety?.routine !== 'tai_chi_15' ? (
+        <TouchableOpacity disabled={generatingTaiChi || starting} onPress={generateTaiChi} style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>{generatingTaiChi ? 'Preparando Tai Chi...' : 'Trocar por Tai Chi · 15 min'}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <View style={styles.noticeCard}>
         <Text style={styles.noticeTitle}>Execução segura</Text>
@@ -215,6 +267,12 @@ const styles = StyleSheet.create({
   infoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 18 },
   infoTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   infoText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 5 },
+  taiChiCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginTop: 14 },
+  taiChiEyebrow: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  taiChiTitle: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 6 },
+  taiChiText: { color: '#C8D4E3', fontSize: 12, lineHeight: 19, marginTop: 8 },
+  taiChiButton: { backgroundColor: '#23436D', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
+  taiChiButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 13 },
   summaryCard: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 18 },
   summaryValue: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   summaryLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
@@ -236,8 +294,9 @@ const styles = StyleSheet.create({
   prescriptionValue: { color: theme.colors.text, fontSize: 13, fontWeight: '900' },
   prescriptionLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   instructions: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
-  videoBadge: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, marginTop: 12 },
+  videoBadge: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, marginTop: 12 },
   videoBadgeText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 6 },
   videoPending: { color: theme.colors.textMuted, fontSize: 10, fontStyle: 'italic', marginTop: 12 },
   noticeCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 16, marginTop: 16 },
   noticeTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 13 },
