@@ -231,6 +231,16 @@ export type NutritionDay = {
   }>;
 };
 
+export type ProfileUpdateResponse = {
+  saved: boolean;
+  profile: OnboardingData | null;
+  safety: {
+    status: string;
+    notes?: string[];
+  };
+  next: 'professional_review' | 'continue';
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -302,6 +312,23 @@ export const api = {
         weightKg: Number(data.weightKg.replace(',', '.')),
       }),
     }, token);
+  },
+
+  async getProfile(token: string): Promise<OnboardingData | null> {
+    const response = await request<{ profile: any }>('/profile', {}, token);
+    return normalizeProfile(response.profile);
+  },
+
+  async updateProfile(token: string, data: OnboardingData): Promise<ProfileUpdateResponse> {
+    const response = await request<any>('/profile', {
+      method: 'PUT',
+      body: JSON.stringify({
+        ...data,
+        heightCm: Number(data.heightCm.replace(',', '.')),
+        weightKg: Number(data.weightKg.replace(',', '.')),
+      }),
+    }, token);
+    return { ...response, profile: normalizeProfile(response.profile) };
   },
 
   async saveDailyCheckin(token: string, input: DailyCheckinInput): Promise<DailyCheckinResult> {
