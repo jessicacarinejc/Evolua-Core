@@ -17,6 +17,7 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { DailyCheckinScreen } from './src/screens/DailyCheckinScreen';
 import { NutritionScreen } from './src/screens/NutritionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ProgressScreen } from './src/screens/ProgressScreen';
 import { WorkoutScreen } from './src/screens/WorkoutScreen';
 import { theme } from './src/theme';
 
@@ -138,7 +139,7 @@ function PlaceholderScreen({ title }: { title: Tab }) {
     Hoje: '',
     Treino: '',
     Nutrição: '',
-    Evolução: 'Peso, medidas, fotos, aderência, cargas e indicadores de progresso.',
+    Evolução: '',
     Perfil: 'Objetivos, saúde, preferências, equipamentos, consentimentos e conta.',
   };
   return (
@@ -219,6 +220,9 @@ export default function App() {
     }
     if (activeTab === 'Nutrição') {
       return <NutritionScreen profile={profile} />;
+    }
+    if (activeTab === 'Evolução') {
+      return <ProgressScreen token={token} />;
     }
     return <PlaceholderScreen title={activeTab} />;
   }, [activeTab, profile, recovery, token]);
