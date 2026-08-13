@@ -123,6 +123,45 @@ export type WorkoutSummary = {
   perceivedEffort: number | null;
 };
 
+export type BodyMetric = {
+  id: string;
+  measuredAt: string;
+  weightKg: number | null;
+  bodyFatPercent: number | null;
+  waistCm: number | null;
+  hipCm: number | null;
+  chestCm: number | null;
+  notes: string | null;
+};
+
+export type ProgressOverview = {
+  weight: {
+    currentKg: number | null;
+    firstKg: number | null;
+    changeKg: number | null;
+    measuredAt: string | null;
+  };
+  workouts: {
+    completedTotal: number;
+    completedThisWeek: number;
+    volumeThisWeekKg: number;
+    averageRpe: number | null;
+  };
+  body: BodyMetric | null;
+};
+
+export type WorkoutHistoryItem = {
+  id: string;
+  completedAt: string;
+  title: string;
+  goal: string;
+  durationMinutes: number;
+  completedSets: number;
+  volumeKg: number;
+  perceivedEffort: number | null;
+  feedback: string | null;
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -261,6 +300,37 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }, token);
+  },
+
+  async getProgressOverview(token: string): Promise<ProgressOverview> {
+    return request<ProgressOverview>('/progress/overview', {}, token);
+  },
+
+  async getBodyMetrics(token: string): Promise<BodyMetric[]> {
+    const response = await request<{ metrics: BodyMetric[] }>('/progress/body-metrics', {}, token);
+    return response.metrics;
+  },
+
+  async saveBodyMetric(
+    token: string,
+    input: {
+      weightKg?: number;
+      bodyFatPercent?: number;
+      waistCm?: number;
+      hipCm?: number;
+      chestCm?: number;
+      notes?: string;
+    },
+  ): Promise<BodyMetric> {
+    return request<BodyMetric>('/progress/body-metrics', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, token);
+  },
+
+  async getWorkoutHistory(token: string): Promise<WorkoutHistoryItem[]> {
+    const response = await request<{ workouts: WorkoutHistoryItem[] }>('/progress/workouts', {}, token);
+    return response.workouts;
   },
 
   async listExercises(token: string) {
