@@ -36,6 +36,17 @@ type PlannedExercise = ExerciseRow & {
   durationSeconds: number | null;
   restSeconds: number;
   targetRir: number;
+  suggestedLoadKg: number | null;
+};
+
+type HistorySetRow = {
+  session_id: string;
+  completed_at: string;
+  repetitions: number;
+  load_kg: string;
+  rir: string | null;
+  reps_max: number | null;
+  target_rir: string | null;
 };
 
 function normalize(value: string) {
@@ -186,6 +197,59 @@ export class WorkoutEngineService {
     return result.rows;
   }
 
+  private async suggestedLoad(userId: string, exerciseId: string) {
+    const history = await this.db.query<HistorySetRow>(
+      `SELECT
+         ws.id AS session_id,
+         ws.completed_at,
+         wset.repetitions,
+         wset.load_kg,
+         wset.rir,
+         wpe.reps_max,
+         wpe.target_rir
+       FROM workout_sets wset
+       JOIN workout_sessions ws ON ws.id = wset.workout_session_id
+       JOIN workout_plans wp ON wp.id = ws.workout_plan_id
+       JOIN workout_plan_exercises wpe
+         ON wpe.workout_plan_id = wp.id AND wpe.exercise_id = wset.exercise_id
+       WHERE ws.user_id = $1
+         AND wset.exercise_id = $2
+         AND ws.completed_at IS NOT NULL
+         AND wset.completed = true
+         AND wset.load_kg IS NOT NULL
+         AND wset.load_kg > 0
+         AND wset.repetitions IS NOT NULL
+         AND wset.repetitions > 0
+       ORDER BY ws.completed_at DESC, wset.set_number
+       LIMIT 40`,
+      [userId, exerciseId],
+    );
+
+    const sessions = new Map<string, HistorySetRow[]>();
+    for (const row of history.rows) {
+      const rows = sessions.get(row.session_id) ?? [];
+      rows.push(row);
+      sessions.set(row.session_id, rows);
+      if (sessions.size > 2) break;
+    }
+
+    const recent = [...sessions.values()].slice(0, 2);
+    if (!recent[0]?.length) return null;
+
+    const currentLoad = Math.max(...recent[0].map((row) => Number(row.load_kg)));
+    const qualifies = recent.length >= 2 && recent.every((sets) => sets.every((set) => {
+      const reachedTop = set.reps_max == null || set.repetitions >= set.reps_max;
+      const actualRir = set.rir == null ? null : Number(set.rir);
+      const targetRir = set.target_rir == null ? null : Number(set.target_rir);
+      const effortOk = targetRir == null || actualRir == null || actualRir >= targetRir;
+      return reachedTop && effortOk;
+    }));
+
+    return qualifies
+      ? Math.round((currentLoad * 1.025) * 2) / 2
+      : Math.round(currentLoad * 2) / 2;
+  }
+
   async generateToday(userId: string) {
     const { profile, checkin, equipment, completedSessions } = await this.loadContext(userId);
     const split = this.chooseSplit(profile.training_days_per_week, completedSessions, checkin.status);
@@ -215,14 +279,18 @@ export class WorkoutEngineService {
       throw new BadRequestException('Não há exercícios compatíveis suficientes para gerar um treino seguro com os dados atuais.');
     }
 
-    const planned: PlannedExercise[] = selected.map((exercise) => ({
-      ...exercise,
-      ...this.prescription(
+    const planned: PlannedExercise[] = await Promise.all(selected.map(async (exercise) => {
+      const prescription = this.prescription(
         profile.primary_goal,
         profile.training_level,
         safety.allowedIntensity,
         exercise.movement_pattern === 'cardio-baixo-impacto',
-      ),
+      );
+      return {
+        ...exercise,
+        ...prescription,
+        suggestedLoadKg: prescription.durationSeconds ? null : await this.suggestedLoad(userId, exercise.id),
+      };
     }));
 
     const planId = await this.db.transaction(async (client) => {
@@ -247,8 +315,8 @@ export class WorkoutEngineService {
         await client.query(
           `INSERT INTO workout_plan_exercises (
              workout_plan_id, exercise_id, sequence, sets, reps_min, reps_max,
-             duration_seconds, rest_seconds, target_rir, notes
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+             duration_seconds, rest_seconds, target_rir, notes, suggested_load_kg
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             id,
             exercise.id,
@@ -260,6 +328,7 @@ export class WorkoutEngineService {
             exercise.restSeconds,
             exercise.targetRir,
             exercise.safety_notes,
+            exercise.suggestedLoadKg,
           ],
         );
       }
@@ -312,12 +381,14 @@ export class WorkoutEngineService {
       duration_seconds: number | null;
       rest_seconds: number;
       target_rir: number;
+      suggested_load_kg: string | null;
     }>(
       `SELECT
          e.id, e.name, e.primary_muscle, e.instructions, e.safety_notes,
          COALESCE(v.url, e.video_url) AS video_url,
          wpe.sequence, wpe.sets, wpe.reps_min, wpe.reps_max,
-         wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir
+         wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir,
+         wpe.suggested_load_kg
        FROM workout_plan_exercises wpe
        JOIN exercises e ON e.id = wpe.exercise_id
        LEFT JOIN LATERAL (
@@ -351,6 +422,7 @@ export class WorkoutEngineService {
         durationSeconds: exercise.duration_seconds,
         restSeconds: exercise.rest_seconds,
         targetRir: exercise.target_rir,
+        suggestedLoadKg: exercise.suggested_load_kg == null ? null : Number(exercise.suggested_load_kg),
       })),
     };
   }
