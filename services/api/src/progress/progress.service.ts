@@ -13,6 +13,27 @@ type MetricRow = {
   notes: string | null;
 };
 
+type StrengthSetRow = {
+  exercise_id: string;
+  exercise_name: string;
+  primary_muscle: string;
+  session_id: string;
+  completed_at: string;
+  repetitions: number;
+  load_kg: string;
+  rir: string | null;
+  reps_max: number | null;
+  target_rir: string | null;
+};
+
+type SessionSet = {
+  repetitions: number;
+  loadKg: number;
+  rir: number | null;
+  repsMax: number | null;
+  targetRir: number | null;
+};
+
 @Injectable()
 export class ProgressService {
   constructor(private readonly db: DatabaseService) {}
@@ -105,6 +126,130 @@ export class ProgressService {
         perceivedEffort: row.perceived_effort,
         feedback: row.feedback,
       })),
+    };
+  }
+
+  async strengthInsights(userId: string) {
+    const result = await this.db.query<StrengthSetRow>(
+      `SELECT
+         e.id AS exercise_id,
+         e.name AS exercise_name,
+         e.primary_muscle,
+         ws.id AS session_id,
+         ws.completed_at,
+         wset.repetitions,
+         wset.load_kg,
+         wset.rir,
+         wpe.reps_max,
+         wpe.target_rir
+       FROM workout_sets wset
+       JOIN workout_sessions ws ON ws.id = wset.workout_session_id
+       JOIN workout_plans wp ON wp.id = ws.workout_plan_id
+       JOIN workout_plan_exercises wpe
+         ON wpe.workout_plan_id = wp.id AND wpe.exercise_id = wset.exercise_id
+       JOIN exercises e ON e.id = wset.exercise_id
+       WHERE ws.user_id = $1
+         AND ws.completed_at IS NOT NULL
+         AND wset.completed = true
+         AND wset.load_kg IS NOT NULL
+         AND wset.load_kg > 0
+         AND wset.repetitions IS NOT NULL
+         AND wset.repetitions > 0
+       ORDER BY ws.completed_at DESC, e.name, wset.set_number
+       LIMIT 400`,
+      [userId],
+    );
+
+    const byExercise = new Map<string, {
+      id: string;
+      name: string;
+      primaryMuscle: string;
+      rows: StrengthSetRow[];
+    }>();
+
+    for (const row of result.rows) {
+      const existing = byExercise.get(row.exercise_id);
+      if (existing) existing.rows.push(row);
+      else byExercise.set(row.exercise_id, {
+        id: row.exercise_id,
+        name: row.exercise_name,
+        primaryMuscle: row.primary_muscle,
+        rows: [row],
+      });
+    }
+
+    const exercises = [...byExercise.values()].map((exercise) => {
+      const sessions = new Map<string, { completedAt: string; sets: SessionSet[] }>();
+      let maxLoadKg = 0;
+      let maxSetVolumeKg = 0;
+
+      for (const row of exercise.rows) {
+        const loadKg = Number(row.load_kg);
+        const setVolume = loadKg * row.repetitions;
+        maxLoadKg = Math.max(maxLoadKg, loadKg);
+        maxSetVolumeKg = Math.max(maxSetVolumeKg, setVolume);
+
+        const session = sessions.get(row.session_id) ?? { completedAt: row.completed_at, sets: [] };
+        session.sets.push({
+          repetitions: row.repetitions,
+          loadKg,
+          rir: row.rir == null ? null : Number(row.rir),
+          repsMax: row.reps_max,
+          targetRir: row.target_rir == null ? null : Number(row.target_rir),
+        });
+        sessions.set(row.session_id, session);
+      }
+
+      const recentSessions = [...sessions.values()]
+        .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+        .slice(0, 2);
+      const latest = recentSessions[0] ?? null;
+      const latestLoadKg = latest ? Math.max(...latest.sets.map((set) => set.loadKg)) : null;
+      const qualifiesForIncrease = recentSessions.length >= 2 && recentSessions.every((session) => {
+        return session.sets.length > 0 && session.sets.every((set) => {
+          const reachedTop = set.repsMax == null || set.repetitions >= set.repsMax;
+          const respectedRir = set.targetRir == null || set.rir == null || set.rir >= set.targetRir;
+          return reachedTop && respectedRir;
+        });
+      });
+
+      const suggestedLoadKg = latestLoadKg == null
+        ? null
+        : qualifiesForIncrease
+          ? Math.round((latestLoadKg * 1.025) * 2) / 2
+          : latestLoadKg;
+
+      return {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        primaryMuscle: exercise.primaryMuscle,
+        personalRecords: {
+          maxLoadKg: Math.round(maxLoadKg * 100) / 100,
+          maxSetVolumeKg: Math.round(maxSetVolumeKg * 100) / 100,
+        },
+        progression: {
+          status: qualifiesForIncrease ? 'increase' : 'maintain',
+          currentLoadKg: latestLoadKg,
+          suggestedLoadKg,
+          increasePercent: qualifiesForIncrease ? 2.5 : 0,
+          reason: qualifiesForIncrease
+            ? 'As duas sessões mais recentes atingiram o topo das repetições planejadas sem ultrapassar o esforço-alvo. Sugestão conservadora: aumentar 2,5% e confirmar a técnica.'
+            : 'Mantenha a carga atual até repetir o topo das repetições planejadas com técnica consistente e esforço compatível com o RIR-alvo.',
+        },
+        lastPerformedAt: latest?.completedAt ?? null,
+      };
+    });
+
+    exercises.sort((a, b) => new Date(b.lastPerformedAt ?? 0).getTime() - new Date(a.lastPerformedAt ?? 0).getTime());
+
+    return {
+      exercises,
+      policy: {
+        automaticIncreasePercent: 2.5,
+        requiresTwoConsecutiveSessions: true,
+        neverForcesLoadChange: true,
+        note: 'A sugestão é conservadora e não substitui ajuste por dor, fadiga, técnica, equipamento disponível ou orientação profissional.',
+      },
     };
   }
 
