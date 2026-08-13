@@ -17,6 +17,7 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { DailyCheckinScreen } from './src/screens/DailyCheckinScreen';
 import { NutritionScreen } from './src/screens/NutritionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { ProgressScreen } from './src/screens/ProgressScreen';
 import { WorkoutScreen } from './src/screens/WorkoutScreen';
 import { theme } from './src/theme';
@@ -92,11 +93,7 @@ function TodayScreen({
           <View><Text style={styles.heroStatValue}>{profile?.trainingDaysPerWeek ?? 3}x</Text><Text style={styles.heroStatLabel}>por semana</Text></View>
           <View><Text style={styles.heroStatValue}>{profile?.trainingLevel || '—'}</Text><Text style={styles.heroStatLabel}>nível</Text></View>
         </View>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          activeOpacity={0.85}
-          onPress={recovery ? onOpenWorkout : onCheckin}
-        >
+        <TouchableOpacity style={styles.primaryButton} activeOpacity={0.85} onPress={recovery ? onOpenWorkout : onCheckin}>
           <Text style={styles.primaryButtonText}>{recovery ? 'Abrir treino de hoje' : 'Fazer check-in e preparar treino'}</Text>
         </TouchableOpacity>
       </View>
@@ -140,7 +137,7 @@ function PlaceholderScreen({ title }: { title: Tab }) {
     Treino: '',
     Nutrição: '',
     Evolução: '',
-    Perfil: 'Objetivos, saúde, preferências, equipamentos, consentimentos e conta.',
+    Perfil: '',
   };
   return (
     <View style={styles.placeholder}>
@@ -215,15 +212,10 @@ export default function App() {
         />
       );
     }
-    if (activeTab === 'Treino') {
-      return <WorkoutScreen token={token} onNeedCheckin={() => setStage('checkin')} />;
-    }
-    if (activeTab === 'Nutrição') {
-      return <NutritionScreen profile={profile} token={token} />;
-    }
-    if (activeTab === 'Evolução') {
-      return <ProgressScreen token={token} />;
-    }
+    if (activeTab === 'Treino') return <WorkoutScreen token={token} onNeedCheckin={() => setStage('checkin')} />;
+    if (activeTab === 'Nutrição') return <NutritionScreen profile={profile} token={token} />;
+    if (activeTab === 'Evolução') return <ProgressScreen token={token} />;
+    if (activeTab === 'Perfil') return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} />;
     return <PlaceholderScreen title={activeTab} />;
   }, [activeTab, profile, recovery, token]);
 

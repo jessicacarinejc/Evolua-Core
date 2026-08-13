@@ -14,6 +14,8 @@ import { NutritionService } from './nutrition/nutrition.service';
 import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingSafetyService } from './onboarding/onboarding-safety.service';
 import { OnboardingService } from './onboarding/onboarding.service';
+import { ProfileController } from './profile/profile.controller';
+import { ProfileService } from './profile/profile.service';
 import { ProgressController } from './progress/progress.controller';
 import { ProgressService } from './progress/progress.service';
 import { TaiChiWorkoutService } from './workouts/tai-chi-workout.service';
@@ -32,6 +34,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     WorkoutsController,
     ProgressController,
     NutritionController,
+    ProfileController,
   ],
   providers: [
     DatabaseService,
@@ -48,6 +51,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     CalisthenicsWorkoutService,
     ProgressService,
     NutritionService,
+    ProfileService,
   ],
 })
 export class AppModule {}
