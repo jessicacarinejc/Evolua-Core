@@ -190,6 +190,47 @@ export type StrengthInsightsResponse = {
   };
 };
 
+export type MealType = 'cafe' | 'lanche_manha' | 'almoco' | 'lanche_tarde' | 'jantar' | 'ceia' | 'outro';
+
+export type NutritionDay = {
+  date: string;
+  targets: null | {
+    caloriesKcal: number | null;
+    proteinG: number | null;
+    carbsG: number | null;
+    fatG: number | null;
+    fiberG: number | null;
+    waterMl: number | null;
+    source: 'system' | 'nutritionist' | 'user';
+  };
+  totals: {
+    caloriesKcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fiberG: number;
+    waterMl: number;
+  };
+  meals: Array<{
+    id: string;
+    mealType: MealType;
+    consumedAt: string;
+    name: string;
+    quantityG: number | null;
+    caloriesKcal: number;
+    proteinG: number;
+    carbsG: number;
+    fatG: number;
+    fiberG: number;
+    notes: string | null;
+  }>;
+  restrictions: Array<{
+    item: string;
+    type: string;
+    hardBlock: boolean;
+  }>;
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -363,6 +404,54 @@ export const api = {
 
   async getStrengthInsights(token: string): Promise<StrengthInsightsResponse> {
     return request<StrengthInsightsResponse>('/progress/strength', {}, token);
+  },
+
+  async getNutritionToday(token: string): Promise<NutritionDay> {
+    return request<NutritionDay>('/nutrition/today', {}, token);
+  },
+
+  async addMealEntry(
+    token: string,
+    input: {
+      mealType: MealType;
+      name: string;
+      quantityG?: number;
+      caloriesKcal?: number;
+      proteinG?: number;
+      carbsG?: number;
+      fatG?: number;
+      fiberG?: number;
+      notes?: string;
+    },
+  ): Promise<NutritionDay> {
+    return request<NutritionDay>('/nutrition/meals', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, token);
+  },
+
+  async addHydration(token: string, amountMl: number): Promise<NutritionDay> {
+    return request<NutritionDay>('/nutrition/hydration', {
+      method: 'POST',
+      body: JSON.stringify({ amountMl }),
+    }, token);
+  },
+
+  async saveNutritionTargets(
+    token: string,
+    input: {
+      caloriesKcal?: number;
+      proteinG?: number;
+      carbsG?: number;
+      fatG?: number;
+      fiberG?: number;
+      waterMl?: number;
+    },
+  ): Promise<NutritionDay> {
+    return request<NutritionDay>('/nutrition/targets', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }, token);
   },
 
   async listExercises(token: string) {

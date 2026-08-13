@@ -219,7 +219,7 @@ export default function App() {
       return <WorkoutScreen token={token} onNeedCheckin={() => setStage('checkin')} />;
     }
     if (activeTab === 'Nutrição') {
-      return <NutritionScreen profile={profile} />;
+      return <NutritionScreen profile={profile} token={token} />;
     }
     if (activeTab === 'Evolução') {
       return <ProgressScreen token={token} />;
