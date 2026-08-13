@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { api, TaiChiRoutine, WorkoutPlan, WorkoutSession, WorkoutSummary } from '../api/client';
 import { theme } from '../theme';
+import { WeeklyWorkoutCard } from '../components/WeeklyWorkoutCard';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
 type Props = {
@@ -212,6 +213,8 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
             : 'O plano usa objetivo, experiência, equipamentos, dores informadas e o check-in do dia antes de selecionar exercícios.'}
         </Text>
 
+        {token ? <WeeklyWorkoutCard token={token} /> : null}
+
         {summary ? (
           <View style={styles.summaryCard}>
             <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>blocos</Text></View>
@@ -289,6 +292,8 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
       <Text style={styles.subtitle}>
         {plan.estimatedMinutes} min · intensidade {String(plan.safety?.allowedIntensity ?? 'adaptada')} · {plan.exercises.length} exercícios
       </Text>
+
+      {token ? <WeeklyWorkoutCard token={token} /> : null}
 
       {currentRoutine === 'calisthenics_circuit' ? (
         <View style={styles.circuitInfoCard}>
