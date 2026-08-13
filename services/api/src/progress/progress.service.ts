@@ -208,7 +208,7 @@ export class ProgressService {
       const qualifiesForIncrease = recentSessions.length >= 2 && recentSessions.every((session) => {
         return session.sets.length > 0 && session.sets.every((set) => {
           const reachedTop = set.repsMax == null || set.repetitions >= set.repsMax;
-          const respectedRir = set.targetRir == null || set.rir == null || set.rir >= set.targetRir;
+          const respectedRir = set.targetRir == null || (set.rir != null && set.rir >= set.targetRir);
           return reachedTop && respectedRir;
         });
       });
@@ -234,7 +234,7 @@ export class ProgressService {
           increasePercent: qualifiesForIncrease ? 2.5 : 0,
           reason: qualifiesForIncrease
             ? 'As duas sessões mais recentes atingiram o topo das repetições planejadas sem ultrapassar o esforço-alvo. Sugestão conservadora: aumentar 2,5% e confirmar a técnica.'
-            : 'Mantenha a carga atual até repetir o topo das repetições planejadas com técnica consistente e esforço compatível com o RIR-alvo.',
+            : 'Mantenha a carga atual até repetir o topo das repetições planejadas com técnica consistente e RIR registrado compatível com o alvo.',
         },
         lastPerformedAt: latest?.completedAt ?? null,
       };
@@ -248,7 +248,7 @@ export class ProgressService {
         automaticIncreasePercent: 2.5,
         requiresTwoConsecutiveSessions: true,
         neverForcesLoadChange: true,
-        note: 'A sugestão é conservadora e não substitui ajuste por dor, fadiga, técnica, equipamento disponível ou orientação profissional.',
+        note: 'A sugestão é conservadora, exige RIR registrado quando houver alvo e não substitui ajuste por dor, fadiga, técnica, equipamento disponível ou orientação profissional.',
       },
     };
   }
