@@ -101,7 +101,13 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     const previous = [...currentExercise.sets]
       .filter((set) => set.completed && set.setNumber < currentSet.setNumber)
       .sort((a, b) => b.setNumber - a.setNumber)[0];
-    setLoadKg(previous?.loadKg != null ? String(previous.loadKg) : '');
+    setLoadKg(
+      previous?.loadKg != null
+        ? String(previous.loadKg)
+        : currentSet.loadKg != null
+          ? String(currentSet.loadKg)
+          : '',
+    );
     setReps(previous?.repetitions != null ? String(previous.repetitions) : String(currentExercise.repsMin ?? ''));
     setRir(previous?.rir != null ? String(previous.rir) : String(currentExercise.targetRir ?? ''));
     setWorkRemaining(currentExercise.durationSeconds ?? 0);
@@ -184,6 +190,14 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
       Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
     }
   };
+
+  const firstSetUsesHistory = Boolean(
+    currentExercise &&
+    currentSet &&
+    !currentExercise.durationSeconds &&
+    currentSet.loadKg != null &&
+    !currentExercise.sets.some((set) => set.completed),
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -277,20 +291,28 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
               )}
             </View>
           ) : (
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Repetições</Text>
-                <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
+            <>
+              {firstSetUsesHistory ? (
+                <View style={styles.suggestedLoadCard}>
+                  <Text style={styles.suggestedLoadTitle}>Carga sugerida pelo histórico</Text>
+                  <Text style={styles.suggestedLoadText}>O valor abaixo foi pré-preenchido a partir dos treinos anteriores. Ajuste ou reduza se a técnica, a recuperação ou qualquer desconforto pedir.</Text>
+                </View>
+              ) : null}
+              <View style={styles.inputRow}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Repetições</Text>
+                  <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Carga (kg)</Text>
+                  <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>RIR</Text>
+                  <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
+                </View>
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Carga (kg)</Text>
-                <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>RIR</Text>
-                <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
-              </View>
-            </View>
+            </>
           )}
 
           <TouchableOpacity
@@ -376,6 +398,9 @@ const styles = StyleSheet.create({
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
   timerButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 28, marginTop: 4 },
   timerButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
+  suggestedLoadCard: { backgroundColor: '#EEF7DE', borderRadius: 12, padding: 12, marginBottom: 8 },
+  suggestedLoadTitle: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  suggestedLoadText: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 3 },
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
   inputGroup: { flex: 1 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
