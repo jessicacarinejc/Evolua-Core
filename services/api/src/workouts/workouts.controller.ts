@@ -2,7 +2,12 @@ import { Body, Controller, Get, Param, Post, Put, Req, UseGuards } from '@nestjs
 import { AuthenticatedRequest, AuthGuard } from '../auth/auth.guard';
 import { CalisthenicsWorkoutService } from './calisthenics-workout.service';
 import { TaiChiWorkoutService } from './tai-chi-workout.service';
-import { CompleteWorkoutSessionDto, SaveWorkoutSetDto } from './workout-session.dto';
+import {
+  CompleteWorkoutSessionDto,
+  ReportWorkoutEventDto,
+  SaveWorkoutSetDto,
+  SubstituteWorkoutExerciseDto,
+} from './workout-session.dto';
 import { WorkoutSessionService } from './workout-session.service';
 import { WorkoutEngineService } from './workout-engine.service';
 
@@ -73,6 +78,33 @@ export class WorkoutsController {
     @Body() input: SaveWorkoutSetDto,
   ) {
     return this.sessions.saveSet(request.auth.userId, sessionId, input);
+  }
+
+  @Post('sessions/:sessionId/events')
+  reportEvent(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+    @Body() input: ReportWorkoutEventDto,
+  ) {
+    return this.sessions.reportEvent(request.auth.userId, sessionId, input);
+  }
+
+  @Get('sessions/:sessionId/exercises/:exerciseId/substitutions')
+  substitutionCandidates(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+    @Param('exerciseId') exerciseId: string,
+  ) {
+    return this.sessions.substitutionCandidates(request.auth.userId, sessionId, exerciseId);
+  }
+
+  @Post('sessions/:sessionId/substitute')
+  substituteExercise(
+    @Req() request: AuthenticatedRequest,
+    @Param('sessionId') sessionId: string,
+    @Body() input: SubstituteWorkoutExerciseDto,
+  ) {
+    return this.sessions.substituteExercise(request.auth.userId, sessionId, input);
   }
 
   @Post('sessions/:sessionId/complete')

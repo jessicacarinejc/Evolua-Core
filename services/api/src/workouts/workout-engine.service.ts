@@ -36,6 +36,25 @@ type PlannedExercise = ExerciseRow & {
   durationSeconds: number | null;
   restSeconds: number;
   targetRir: number;
+  suggestedLoadKg: number | null;
+};
+
+type HistorySetRow = {
+  session_id: string;
+  completed_at: string;
+  repetitions: number;
+  load_kg: string;
+  rir: string | null;
+  reps_max: number | null;
+  target_rir: string | null;
+};
+
+type RecentSafetyEventRow = {
+  event_type: 'pain' | 'symptom' | 'substitution';
+  body_area: string | null;
+  severity: number | null;
+  symptom_type: string | null;
+  created_at: string;
 };
 
 function normalize(value: string) {
@@ -104,11 +123,46 @@ export class WorkoutEngineService {
       [userId],
     );
 
+    const recentSafetyResult = await this.db.query<RecentSafetyEventRow>(
+      `SELECT
+         wse.event_type,
+         wse.body_area,
+         wse.severity,
+         wse.metadata->>'symptomType' AS symptom_type,
+         wse.created_at
+       FROM workout_session_events wse
+       JOIN workout_sessions ws ON ws.id = wse.workout_session_id
+       WHERE ws.user_id = $1
+         AND wse.created_at >= now() - interval '7 days'
+         AND wse.event_type IN ('pain','symptom')
+       ORDER BY wse.created_at DESC
+       LIMIT 30`,
+      [userId],
+    );
+
+    const recentPainAreas = [...new Set(
+      recentSafetyResult.rows
+        .filter((event) => event.event_type === 'pain' && (event.severity ?? 0) >= 3 && event.body_area)
+        .map((event) => event.body_area as string),
+    )];
+    const now = Date.now();
+    const recentCriticalSymptom = recentSafetyResult.rows.find((event) => {
+      if (event.event_type !== 'symptom' || (event.severity ?? 0) < 5) return false;
+      if (!['dizziness', 'shortness_of_breath'].includes(event.symptom_type ?? '')) return false;
+      return now - new Date(event.created_at).getTime() <= 48 * 60 * 60 * 1000;
+    });
+    const recentModerateSignal = recentSafetyResult.rows.some((event) => (event.severity ?? 0) >= 5);
+
     return {
       profile: profileResult.rows[0],
       checkin,
       equipment: equipmentResult.rows.map((row) => row.label),
       completedSessions: Number(sessionsResult.rows[0]?.total ?? 0),
+      recentSafety: {
+        painAreas: recentPainAreas,
+        moderateSignal: recentModerateSignal,
+        criticalSymptom: recentCriticalSymptom ?? null,
+      },
     };
   }
 
@@ -186,16 +240,81 @@ export class WorkoutEngineService {
     return result.rows;
   }
 
+  private async suggestedLoad(userId: string, exerciseId: string) {
+    const history = await this.db.query<HistorySetRow>(
+      `SELECT
+         ws.id AS session_id,
+         ws.completed_at,
+         wset.repetitions,
+         wset.load_kg,
+         wset.rir,
+         wpe.reps_max,
+         wpe.target_rir
+       FROM workout_sets wset
+       JOIN workout_sessions ws ON ws.id = wset.workout_session_id
+       JOIN workout_plans wp ON wp.id = ws.workout_plan_id
+       JOIN workout_plan_exercises wpe
+         ON wpe.workout_plan_id = wp.id AND wpe.exercise_id = wset.exercise_id
+       WHERE ws.user_id = $1
+         AND wset.exercise_id = $2
+         AND ws.completed_at IS NOT NULL
+         AND wset.completed = true
+         AND wset.load_kg IS NOT NULL
+         AND wset.load_kg > 0
+         AND wset.repetitions IS NOT NULL
+         AND wset.repetitions > 0
+       ORDER BY ws.completed_at DESC, wset.set_number
+       LIMIT 40`,
+      [userId, exerciseId],
+    );
+
+    const sessions = new Map<string, HistorySetRow[]>();
+    for (const row of history.rows) {
+      const rows = sessions.get(row.session_id) ?? [];
+      rows.push(row);
+      sessions.set(row.session_id, rows);
+      if (sessions.size > 2) break;
+    }
+
+    const recent = [...sessions.values()].slice(0, 2);
+    if (!recent[0]?.length) return null;
+
+    const currentLoad = Math.max(...recent[0].map((row) => Number(row.load_kg)));
+    const qualifies = recent.length >= 2 && recent.every((sets) => sets.every((set) => {
+      const reachedTop = set.reps_max == null || set.repetitions >= set.reps_max;
+      const actualRir = set.rir == null ? null : Number(set.rir);
+      const targetRir = set.target_rir == null ? null : Number(set.target_rir);
+      const effortOk = targetRir == null || (actualRir != null && actualRir >= targetRir);
+      return reachedTop && effortOk;
+    }));
+
+    return qualifies
+      ? Math.round((currentLoad * 1.025) * 2) / 2
+      : Math.round(currentLoad * 2) / 2;
+  }
+
   async generateToday(userId: string) {
-    const { profile, checkin, equipment, completedSessions } = await this.loadContext(userId);
+    const { profile, checkin, equipment, completedSessions, recentSafety } = await this.loadContext(userId);
+    if (recentSafety.criticalSymptom) {
+      throw new BadRequestException('Um sintoma relevante foi registrado nas últimas 48 horas. Atualize o check-in e procure avaliação adequada antes de gerar um novo treino automático.');
+    }
+
+    const effectiveRecoveryScore = recentSafety.moderateSignal
+      ? Math.min(checkin.recovery_score, 69)
+      : checkin.recovery_score;
+    const combinedPainAreas = [...new Set([...checkin.pain_areas, ...recentSafety.painAreas])];
     const split = this.chooseSplit(profile.training_days_per_week, completedSessions, checkin.status);
     const safety = this.safety.evaluate({
       goal: profile.primary_goal,
       availableMinutes: checkin.available_minutes,
-      recoveryScore: checkin.recovery_score,
-      jointPain: checkin.pain_areas,
+      recoveryScore: effectiveRecoveryScore,
+      jointPain: combinedPainAreas,
       availableEquipment: equipment,
     });
+
+    if (recentSafety.moderateSignal) {
+      safety.notes.push('Ocorrência recente de dor/sintoma durante treino: a intensidade automática foi limitada e o sinal foi incorporado às regras de segurança.');
+    }
 
     const all = await this.catalog();
     const targetMuscles = new Set(splitMuscles[split] ?? splitMuscles['corpo inteiro']);
@@ -215,14 +334,19 @@ export class WorkoutEngineService {
       throw new BadRequestException('Não há exercícios compatíveis suficientes para gerar um treino seguro com os dados atuais.');
     }
 
-    const planned: PlannedExercise[] = selected.map((exercise) => ({
-      ...exercise,
-      ...this.prescription(
+    const planned: PlannedExercise[] = await Promise.all(selected.map(async (exercise) => {
+      const prescription = this.prescription(
         profile.primary_goal,
         profile.training_level,
         safety.allowedIntensity,
         exercise.movement_pattern === 'cardio-baixo-impacto',
-      ),
+      );
+      const mayUseHistory = !prescription.durationSeconds && safety.allowedIntensity !== 'leve' && checkin.status !== 'recovery';
+      return {
+        ...exercise,
+        ...prescription,
+        suggestedLoadKg: mayUseHistory ? await this.suggestedLoad(userId, exercise.id) : null,
+      };
     }));
 
     const planId = await this.db.transaction(async (client) => {
@@ -238,7 +362,20 @@ export class WorkoutEngineService {
            user_id, status, goal, planned_date, estimated_minutes, generation_source, safety_snapshot
          ) VALUES ($1, 'draft', $2, CURRENT_DATE, $3, 'rules', $4::jsonb)
          RETURNING id`,
-        [userId, profile.primary_goal, checkin.available_minutes, JSON.stringify({ split, recoveryScore: checkin.recovery_score, ...safety })],
+        [
+          userId,
+          profile.primary_goal,
+          checkin.available_minutes,
+          JSON.stringify({
+            split,
+            recoveryScore: effectiveRecoveryScore,
+            recentSessionSignals: {
+              painAreas: recentSafety.painAreas,
+              intensityLimited: recentSafety.moderateSignal,
+            },
+            ...safety,
+          }),
+        ],
       );
       const id = planResult.rows[0].id;
 
@@ -247,8 +384,8 @@ export class WorkoutEngineService {
         await client.query(
           `INSERT INTO workout_plan_exercises (
              workout_plan_id, exercise_id, sequence, sets, reps_min, reps_max,
-             duration_seconds, rest_seconds, target_rir, notes
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+             duration_seconds, rest_seconds, target_rir, notes, suggested_load_kg
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             id,
             exercise.id,
@@ -260,6 +397,7 @@ export class WorkoutEngineService {
             exercise.restSeconds,
             exercise.targetRir,
             exercise.safety_notes,
+            exercise.suggestedLoadKg,
           ],
         );
       }
@@ -312,12 +450,14 @@ export class WorkoutEngineService {
       duration_seconds: number | null;
       rest_seconds: number;
       target_rir: number;
+      suggested_load_kg: string | null;
     }>(
       `SELECT
          e.id, e.name, e.primary_muscle, e.instructions, e.safety_notes,
          COALESCE(v.url, e.video_url) AS video_url,
          wpe.sequence, wpe.sets, wpe.reps_min, wpe.reps_max,
-         wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir
+         wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir,
+         wpe.suggested_load_kg
        FROM workout_plan_exercises wpe
        JOIN exercises e ON e.id = wpe.exercise_id
        LEFT JOIN LATERAL (
@@ -351,6 +491,7 @@ export class WorkoutEngineService {
         durationSeconds: exercise.duration_seconds,
         restSeconds: exercise.rest_seconds,
         targetRir: exercise.target_rir,
+        suggestedLoadKg: exercise.suggested_load_kg == null ? null : Number(exercise.suggested_load_kg),
       })),
     };
   }

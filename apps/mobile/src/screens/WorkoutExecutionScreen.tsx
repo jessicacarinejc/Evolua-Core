@@ -10,7 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { api, WorkoutSession, WorkoutSummary } from '../api/client';
+import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } from '../api/client';
 import { theme } from '../theme';
 
 type Props = {
@@ -18,6 +18,15 @@ type Props = {
   session: WorkoutSession;
   onSessionChange: (session: WorkoutSession) => void;
   onFinished: (summary: WorkoutSummary) => void;
+};
+
+type SafetyInputType = 'pain' | 'dizziness' | 'shortness_of_breath' | 'other';
+
+const safetyTypeLabels: Record<SafetyInputType, string> = {
+  pain: 'Dor/desconforto',
+  dizziness: 'Tontura',
+  shortness_of_breath: 'Falta de ar incomum',
+  other: 'Outro sintoma',
 };
 
 function asNumber(value: string) {
@@ -45,6 +54,15 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const [workRunning, setWorkRunning] = useState(false);
   const [perceivedEffort, setPerceivedEffort] = useState('7');
   const [feedback, setFeedback] = useState('');
+  const [showSafetyPanel, setShowSafetyPanel] = useState(false);
+  const [safetyType, setSafetyType] = useState<SafetyInputType>('pain');
+  const [bodyArea, setBodyArea] = useState('');
+  const [severity, setSeverity] = useState('3');
+  const [safetyNotes, setSafetyNotes] = useState('');
+  const [reportingSafety, setReportingSafety] = useState(false);
+  const [loadingSubstitutions, setLoadingSubstitutions] = useState(false);
+  const [substitutingId, setSubstitutingId] = useState<string | null>(null);
+  const [substitutions, setSubstitutions] = useState<WorkoutSubstitutionCandidate[]>([]);
 
   const isCircuit = session.plan.safety?.routine === 'calisthenics_circuit';
   const circuitRound = useMemo(() => {
@@ -77,6 +95,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const totalSets = session.exercises.reduce((total, exercise) => total + exercise.plannedSets, 0);
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
   const rounds = Number(session.plan.safety?.rounds ?? currentExercise?.plannedSets ?? 0);
+  const currentExerciseStarted = Boolean(currentExercise?.sets.some((set) => set.completed));
 
   useEffect(() => {
     if (!restRemaining) return;
@@ -101,11 +120,19 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     const previous = [...currentExercise.sets]
       .filter((set) => set.completed && set.setNumber < currentSet.setNumber)
       .sort((a, b) => b.setNumber - a.setNumber)[0];
-    setLoadKg(previous?.loadKg != null ? String(previous.loadKg) : '');
+    setLoadKg(
+      previous?.loadKg != null
+        ? String(previous.loadKg)
+        : currentSet.loadKg != null
+          ? String(currentSet.loadKg)
+          : '',
+    );
     setReps(previous?.repetitions != null ? String(previous.repetitions) : String(currentExercise.repsMin ?? ''));
     setRir(previous?.rir != null ? String(previous.rir) : String(currentExercise.targetRir ?? ''));
     setWorkRemaining(currentExercise.durationSeconds ?? 0);
     setWorkRunning(false);
+    setSubstitutions([]);
+    setShowSafetyPanel(false);
   }, [currentExercise?.id, currentSet?.setNumber]);
 
   const saveCurrentSet = async () => {
@@ -155,6 +182,77 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     }
   };
 
+  const loadSubstitutions = async (exerciseId?: string) => {
+    const id = exerciseId ?? currentExercise?.id;
+    if (!id) return;
+    setLoadingSubstitutions(true);
+    try {
+      const result = await api.getWorkoutSubstitutions(token, session.id, id);
+      setSubstitutions(result.candidates);
+      if (!result.candidates.length) {
+        Alert.alert('Sem alternativa automática', 'Não encontramos uma substituição compatível com as regras de segurança e os equipamentos atuais. Interrompa o movimento se houver dor e procure orientação adequada quando necessário.');
+      }
+    } catch (cause) {
+      Alert.alert('Alternativas indisponíveis', cause instanceof Error ? cause.message : 'Tente novamente.');
+    } finally {
+      setLoadingSubstitutions(false);
+    }
+  };
+
+  const reportSafetyEvent = async () => {
+    if (!currentExercise) return;
+    const severityValue = Number(severity);
+    if (!Number.isInteger(severityValue) || severityValue < 1 || severityValue > 10) {
+      Alert.alert('Intensidade inválida', 'Informe a intensidade do sintoma entre 1 e 10.');
+      return;
+    }
+    if (safetyType === 'pain' && !bodyArea.trim()) {
+      Alert.alert('Informe a região', 'Digite onde surgiu a dor ou o desconforto.');
+      return;
+    }
+
+    setReportingSafety(true);
+    try {
+      const result = await api.reportWorkoutEvent(token, session.id, {
+        type: safetyType,
+        exerciseId: currentExercise.id,
+        bodyArea: safetyType === 'pain' ? bodyArea.trim() : undefined,
+        severity: severityValue,
+        notes: safetyNotes.trim() || undefined,
+      });
+      onSessionChange(result.session);
+      Alert.alert(result.stopRecommended ? 'Interrompa o treino' : 'Registro salvo', result.message);
+      setSafetyNotes('');
+      if (result.substitutionRecommended && !currentExerciseStarted) {
+        await loadSubstitutions(currentExercise.id);
+      }
+    } catch (cause) {
+      Alert.alert('Registro não salvo', cause instanceof Error ? cause.message : 'Tente novamente.');
+    } finally {
+      setReportingSafety(false);
+    }
+  };
+
+  const substituteExercise = async (candidate: WorkoutSubstitutionCandidate) => {
+    if (!currentExercise) return;
+    setSubstitutingId(candidate.id);
+    try {
+      const updated = await api.substituteWorkoutExercise(token, session.id, {
+        currentExerciseId: currentExercise.id,
+        replacementExerciseId: candidate.id,
+        reason: 'Substituição escolhida durante a sessão por segurança ou conforto.',
+      });
+      onSessionChange(updated);
+      setSubstitutions([]);
+      setShowSafetyPanel(false);
+      Alert.alert('Exercício substituído', `${candidate.name} entrou no lugar do exercício anterior. A carga não foi transferida automaticamente.`);
+    } catch (cause) {
+      Alert.alert('Troca não realizada', cause instanceof Error ? cause.message : 'Tente novamente.');
+    } finally {
+      setSubstitutingId(null);
+    }
+  };
+
   const finishWorkout = async () => {
     const effort = Number(perceivedEffort);
     if (!Number.isInteger(effort) || effort < 1 || effort > 10) {
@@ -184,6 +282,14 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
       Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
     }
   };
+
+  const firstSetUsesHistory = Boolean(
+    currentExercise &&
+    currentSet &&
+    !currentExercise.durationSeconds &&
+    currentSet.loadKg != null &&
+    !currentExercise.sets.some((set) => set.completed),
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -260,6 +366,71 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
             </>
           ) : null}
 
+          <View style={styles.safetyActions}>
+            <TouchableOpacity onPress={() => setShowSafetyPanel((value) => !value)} style={styles.safetyActionButton}>
+              <Text style={styles.safetyActionText}>Registrar dor/sintoma</Text>
+            </TouchableOpacity>
+            {!currentExerciseStarted ? (
+              <TouchableOpacity disabled={loadingSubstitutions} onPress={() => void loadSubstitutions()} style={styles.safetyActionButton}>
+                <Text style={styles.safetyActionText}>{loadingSubstitutions ? 'Buscando...' : 'Alternativa segura'}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {showSafetyPanel ? (
+            <View style={styles.safetyPanel}>
+              <Text style={styles.safetyPanelTitle}>Como você está se sentindo?</Text>
+              <View style={styles.safetyTypeWrap}>
+                {(Object.keys(safetyTypeLabels) as SafetyInputType[]).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => setSafetyType(type)}
+                    style={[styles.safetyTypeButton, safetyType === type && styles.safetyTypeButtonActive]}
+                  >
+                    <Text style={[styles.safetyTypeText, safetyType === type && styles.safetyTypeTextActive]}>{safetyTypeLabels[type]}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {safetyType === 'pain' ? (
+                <>
+                  <Text style={styles.inputLabel}>Região do corpo</Text>
+                  <TextInput value={bodyArea} onChangeText={setBodyArea} style={styles.fullInput} placeholder="Ex.: joelho direito" />
+                </>
+              ) : null}
+              <Text style={styles.inputLabel}>Intensidade (1–10)</Text>
+              <TextInput value={severity} onChangeText={setSeverity} keyboardType="number-pad" style={styles.fullInput} placeholder="3" />
+              <Text style={styles.inputLabel}>Observação (opcional)</Text>
+              <TextInput value={safetyNotes} onChangeText={setSafetyNotes} style={[styles.fullInput, styles.safetyNotesInput]} placeholder="Ex.: começou ao descer, sensação diferente do esforço muscular..." multiline />
+              <TouchableOpacity disabled={reportingSafety} onPress={() => void reportSafetyEvent()} style={styles.safetySaveButton}>
+                {reportingSafety ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.safetySaveText}>Salvar ocorrência</Text>}
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {substitutions.length > 0 ? (
+            <View style={styles.substitutionCard}>
+              <Text style={styles.substitutionTitle}>Alternativas compatíveis</Text>
+              <Text style={styles.substitutionIntro}>A troca automática só é liberada antes da primeira série e não transfere a carga sugerida do exercício anterior.</Text>
+              {substitutions.map((candidate) => (
+                <View key={candidate.id} style={styles.substitutionRow}>
+                  <View style={styles.substitutionTextWrap}>
+                    <Text style={styles.substitutionName}>{candidate.name}</Text>
+                    <Text style={styles.substitutionMeta}>{candidate.primaryMuscle} · {candidate.reason}</Text>
+                  </View>
+                  <TouchableOpacity
+                    disabled={substitutingId != null}
+                    onPress={() => void substituteExercise(candidate)}
+                    style={styles.substituteButton}
+                  >
+                    {substitutingId === candidate.id
+                      ? <ActivityIndicator color={theme.colors.navyDark} />
+                      : <Text style={styles.substituteButtonText}>Trocar</Text>}
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
           {currentExercise.durationSeconds ? (
             <View style={styles.timedCard}>
               <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
@@ -277,20 +448,28 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
               )}
             </View>
           ) : (
-            <View style={styles.inputRow}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Repetições</Text>
-                <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
+            <>
+              {firstSetUsesHistory ? (
+                <View style={styles.suggestedLoadCard}>
+                  <Text style={styles.suggestedLoadTitle}>Carga sugerida pelo histórico</Text>
+                  <Text style={styles.suggestedLoadText}>O valor abaixo foi pré-preenchido a partir dos treinos anteriores. Ajuste ou reduza se a técnica, a recuperação ou qualquer desconforto pedir.</Text>
+                </View>
+              ) : null}
+              <View style={styles.inputRow}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Repetições</Text>
+                  <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Carga (kg)</Text>
+                  <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>RIR</Text>
+                  <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
+                </View>
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Carga (kg)</Text>
-                <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>RIR</Text>
-                <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
-              </View>
-            </View>
+            </>
           )}
 
           <TouchableOpacity
@@ -331,6 +510,17 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         );
       })}
 
+      {session.safetyEvents?.length ? (
+        <View style={styles.sessionEventsCard}>
+          <Text style={styles.sessionEventsTitle}>Ocorrências desta sessão</Text>
+          {session.safetyEvents.slice(0, 4).map((event) => (
+            <Text key={event.id} style={styles.sessionEventText}>
+              • {event.type === 'pain' ? `Dor${event.bodyArea ? ` em ${event.bodyArea}` : ''}` : event.type === 'substitution' ? 'Substituição de exercício' : 'Sintoma registrado'}{event.severity ? ` · intensidade ${event.severity}/10` : ''}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+
       <View style={styles.noticeCard}>
         <Text style={styles.noticeTitle}>Segurança durante a execução</Text>
         <Text style={styles.noticeText}>Interrompa a sessão diante de dor aguda, tontura, falta de ar incomum ou qualquer sintoma novo e procure avaliação adequada.</Text>
@@ -370,12 +560,37 @@ const styles = StyleSheet.create({
   videoButton: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4 },
   videoButtonText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginBottom: 10 },
+  safetyActions: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 12 },
+  safetyActionButton: { flex: 1, borderWidth: 1, borderColor: '#E4B36A', backgroundColor: '#FFF7EC', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 9, alignItems: 'center' },
+  safetyActionText: { color: theme.colors.warning, fontSize: 10, fontWeight: '900' },
+  safetyPanel: { backgroundColor: '#FFF7EC', borderRadius: 14, padding: 13, marginBottom: 14, borderWidth: 1, borderColor: '#F2D3A5' },
+  safetyPanelTitle: { color: theme.colors.navy, fontSize: 14, fontWeight: '900' },
+  safetyTypeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  safetyTypeButton: { borderRadius: 999, borderWidth: 1, borderColor: theme.colors.border, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: theme.colors.white },
+  safetyTypeButtonActive: { backgroundColor: theme.colors.navy, borderColor: theme.colors.navy },
+  safetyTypeText: { color: theme.colors.textMuted, fontSize: 9, fontWeight: '800' },
+  safetyTypeTextActive: { color: theme.colors.white },
+  safetyNotesInput: { minHeight: 70, textAlignVertical: 'top' },
+  safetySaveButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 10 },
+  safetySaveText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
+  substitutionCard: { backgroundColor: '#EEF7DE', borderRadius: 14, padding: 13, marginBottom: 14 },
+  substitutionTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
+  substitutionIntro: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 3, marginBottom: 8 },
+  substitutionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 1, borderTopColor: '#D9E7BF' },
+  substitutionTextWrap: { flex: 1, paddingRight: 8 },
+  substitutionName: { color: theme.colors.navy, fontWeight: '900', fontSize: 12 },
+  substitutionMeta: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 2 },
+  substituteButton: { backgroundColor: theme.colors.lime, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, minWidth: 58, alignItems: 'center' },
+  substituteButtonText: { color: theme.colors.navyDark, fontSize: 10, fontWeight: '900' },
   timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14, alignItems: 'center' },
   timedLabel: { color: theme.colors.navy, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   timedValue: { color: theme.colors.navy, fontSize: 42, fontWeight: '900', marginVertical: 5 },
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
   timerButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 28, marginTop: 4 },
   timerButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
+  suggestedLoadCard: { backgroundColor: '#EEF7DE', borderRadius: 12, padding: 12, marginBottom: 8 },
+  suggestedLoadTitle: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  suggestedLoadText: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 3 },
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
   inputGroup: { flex: 1 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
@@ -394,6 +609,9 @@ const styles = StyleSheet.create({
   exerciseProgressName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900' },
   exerciseProgressMeta: { color: theme.colors.textMuted, fontSize: 10, marginTop: 3 },
   exerciseProgressStatus: { color: theme.colors.lime, fontSize: 15, fontWeight: '900' },
+  sessionEventsCard: { backgroundColor: theme.colors.white, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginTop: 10 },
+  sessionEventsTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 13, marginBottom: 5 },
+  sessionEventText: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 2 },
   noticeCard: { backgroundColor: '#FFF4E5', borderRadius: 16, padding: 16, marginTop: 16 },
   noticeTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },
   noticeText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },
