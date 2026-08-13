@@ -57,8 +57,14 @@ const taiChiOptions: TaiChiOption[] = [
   },
 ];
 
+function durationLabel(seconds: number) {
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
 function repsLabel(plan: WorkoutPlan['exercises'][number]) {
-  if (plan.durationSeconds) return `${Math.round(plan.durationSeconds / 60)} min`;
+  if (plan.durationSeconds) return durationLabel(plan.durationSeconds);
   if (plan.repsMin && plan.repsMax) return `${plan.repsMin}-${plan.repsMax} rep`;
   return 'por tempo';
 }
@@ -70,6 +76,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingTaiChi, setGeneratingTaiChi] = useState<TaiChiRoutine | null>(null);
+  const [generatingCalisthenics, setGeneratingCalisthenics] = useState(false);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -127,6 +134,23 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     }
   };
 
+  const generateCalisthenics = async () => {
+    if (!token) return;
+    setGeneratingCalisthenics(true);
+    setSummary(null);
+    try {
+      setPlan(await api.generateCalisthenicsCircuit(token));
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Não foi possível preparar a calistenia.';
+      Alert.alert('Calistenia não preparada', message, [
+        { text: 'Fechar', style: 'cancel' },
+        { text: 'Fazer check-in', onPress: onNeedCheckin },
+      ]);
+    } finally {
+      setGeneratingCalisthenics(false);
+    }
+  };
+
   const start = async () => {
     if (!token || !plan) return;
     setStarting(true);
@@ -145,7 +169,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     setPlan(null);
     Alert.alert(
       'Treino concluído',
-      `${result.completedSets} séries · ${result.durationMinutes} min · volume ${result.totalVolumeKg.toFixed(1)} kg`,
+      `${result.completedSets} blocos · ${result.durationMinutes} min · volume ${result.totalVolumeKg.toFixed(1)} kg`,
     );
   };
 
@@ -190,7 +214,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
 
         {summary ? (
           <View style={styles.summaryCard}>
-            <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>séries</Text></View>
+            <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>blocos</Text></View>
             <View><Text style={styles.summaryValue}>{summary.durationMinutes} min</Text><Text style={styles.summaryLabel}>duração</Text></View>
             <View><Text style={styles.summaryValue}>{summary.totalVolumeKg.toFixed(1)} kg</Text><Text style={styles.summaryLabel}>volume</Text></View>
             <View><Text style={styles.summaryValue}>RPE {summary.perceivedEffort ?? '—'}</Text><Text style={styles.summaryLabel}>esforço</Text></View>
@@ -203,9 +227,27 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         )}
 
         {!summary ? (
-          <TouchableOpacity disabled={generating || generatingTaiChi != null} onPress={generate} style={styles.primaryButton}>
+          <TouchableOpacity disabled={generating || generatingTaiChi != null || generatingCalisthenics} onPress={generate} style={styles.primaryButton}>
             {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de musculação</Text>}
           </TouchableOpacity>
+        ) : null}
+
+        {!summary ? (
+          <View style={styles.calisthenicsCard}>
+            <Text style={styles.calisthenicsEyebrow}>CALISTENIA · CIRCUITO</Text>
+            <Text style={styles.calisthenicsTitle}>40s de trabalho · 20s de transição</Text>
+            <Text style={styles.calisthenicsText}>Flexão, Polichinelo, Mergulho no Banco, Joelhos Altos e Flexão Diamante. O app escolhe 3 ou 4 rounds conforme recuperação e tempo disponível, com 2 minutos entre rounds.</Text>
+            <Text style={styles.calisthenicsText}>Adaptações iniciantes e versões sem salto são orientadas quando necessário. Dor em ombro, punho ou cotovelo bloqueia este circuito automático.</Text>
+            <TouchableOpacity
+              disabled={generatingCalisthenics || generating || generatingTaiChi != null}
+              onPress={() => void generateCalisthenics()}
+              style={styles.calisthenicsButton}
+            >
+              {generatingCalisthenics
+                ? <ActivityIndicator color={theme.colors.white} />
+                : <Text style={styles.calisthenicsButtonText}>Preparar circuito de calistenia</Text>}
+            </TouchableOpacity>
+          </View>
         ) : null}
 
         {!summary ? (
@@ -218,7 +260,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
                 <Text style={styles.taiChiTitle}>{option.title}</Text>
                 <Text style={styles.taiChiText}>{option.description}</Text>
                 <TouchableOpacity
-                  disabled={generatingTaiChi != null || generating}
+                  disabled={generatingTaiChi != null || generating || generatingCalisthenics}
                   onPress={() => void generateTaiChi(option.route)}
                   style={styles.taiChiButton}
                 >
@@ -248,6 +290,13 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         {plan.estimatedMinutes} min · intensidade {String(plan.safety?.allowedIntensity ?? 'adaptada')} · {plan.exercises.length} exercícios
       </Text>
 
+      {currentRoutine === 'calisthenics_circuit' ? (
+        <View style={styles.circuitInfoCard}>
+          <Text style={styles.infoTitle}>Estrutura do circuito</Text>
+          <Text style={styles.infoText}>{plan.safety?.rounds ?? 3} rounds · {plan.safety?.workSeconds ?? 40}s por exercício · {plan.safety?.transitionSeconds ?? 20}s entre exercícios · {plan.safety?.roundRestSeconds ?? 120}s entre rounds.</Text>
+        </View>
+      ) : null}
+
       {Array.isArray(plan.safety?.notes) && plan.safety.notes.length > 0 ? (
         <View style={styles.safetyCard}>
           <Text style={styles.safetyTitle}>Ajustes de segurança</Text>
@@ -266,9 +315,9 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
           </View>
 
           <View style={styles.prescriptionRow}>
-            <View><Text style={styles.prescriptionValue}>{exercise.sets}</Text><Text style={styles.prescriptionLabel}>séries</Text></View>
+            <View><Text style={styles.prescriptionValue}>{exercise.sets}</Text><Text style={styles.prescriptionLabel}>{currentRoutine === 'calisthenics_circuit' ? 'rounds' : 'séries'}</Text></View>
             <View><Text style={styles.prescriptionValue}>{repsLabel(exercise)}</Text><Text style={styles.prescriptionLabel}>alvo</Text></View>
-            <View><Text style={styles.prescriptionValue}>{exercise.restSeconds}s</Text><Text style={styles.prescriptionLabel}>descanso</Text></View>
+            <View><Text style={styles.prescriptionValue}>{exercise.restSeconds}s</Text><Text style={styles.prescriptionLabel}>transição</Text></View>
             <View><Text style={styles.prescriptionValue}>RIR {exercise.targetRir}</Text><Text style={styles.prescriptionLabel}>esforço</Text></View>
           </View>
 
@@ -292,9 +341,15 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         {starting ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Iniciar treino</Text>}
       </TouchableOpacity>
 
-      <TouchableOpacity disabled={generating || starting || generatingTaiChi != null} onPress={generate} style={styles.secondaryButton}>
+      <TouchableOpacity disabled={generating || starting || generatingTaiChi != null || generatingCalisthenics} onPress={generate} style={styles.secondaryButton}>
         <Text style={styles.secondaryButtonText}>{generating ? 'Recalculando...' : 'Trocar por treino de musculação'}</Text>
       </TouchableOpacity>
+
+      {currentRoutine !== 'calisthenics_circuit' ? (
+        <TouchableOpacity disabled={generatingCalisthenics || starting} onPress={() => void generateCalisthenics()} style={styles.secondaryButton}>
+          <Text style={styles.secondaryButtonText}>{generatingCalisthenics ? 'Preparando calistenia...' : 'Trocar por circuito de calistenia'}</Text>
+        </TouchableOpacity>
+      ) : null}
 
       <Text style={styles.switchTitle}>Trocar por outra rotina de Tai Chi</Text>
       {taiChiOptions
@@ -302,7 +357,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         .map((option) => (
           <TouchableOpacity
             key={option.route}
-            disabled={generatingTaiChi != null || starting}
+            disabled={generatingTaiChi != null || starting || generatingCalisthenics}
             onPress={() => void generateTaiChi(option.route)}
             style={styles.secondaryButton}
           >
@@ -328,10 +383,17 @@ const styles = StyleSheet.create({
   title: { color: theme.colors.navy, fontSize: 30, fontWeight: '900', marginTop: 5, textTransform: 'capitalize' },
   subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 20 },
   infoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 18 },
+  circuitInfoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 14 },
   infoTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   infoText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 5 },
   sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: '900', marginTop: 26, marginBottom: 6 },
   sectionIntro: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 4 },
+  calisthenicsCard: { backgroundColor: '#18345A', borderRadius: 20, padding: 18, marginTop: 14 },
+  calisthenicsEyebrow: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
+  calisthenicsTitle: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 6 },
+  calisthenicsText: { color: '#C8D4E3', fontSize: 12, lineHeight: 19, marginTop: 8 },
+  calisthenicsButton: { backgroundColor: '#2A4E7B', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
+  calisthenicsButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 13 },
   taiChiCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginTop: 12 },
   taiChiEyebrow: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
   taiChiTitle: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 6 },
