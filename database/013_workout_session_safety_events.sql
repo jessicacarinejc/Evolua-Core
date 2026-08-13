@@ -1,3 +1,4 @@
+-- Eventos imutáveis de segurança e substituição registrados durante a execução do treino.
 CREATE TABLE workout_session_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workout_session_id UUID NOT NULL REFERENCES workout_sessions(id) ON DELETE CASCADE,
