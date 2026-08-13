@@ -241,7 +241,7 @@ export class WorkoutEngineService {
       const reachedTop = set.reps_max == null || set.repetitions >= set.reps_max;
       const actualRir = set.rir == null ? null : Number(set.rir);
       const targetRir = set.target_rir == null ? null : Number(set.target_rir);
-      const effortOk = targetRir == null || actualRir == null || actualRir >= targetRir;
+      const effortOk = targetRir == null || (actualRir != null && actualRir >= targetRir);
       return reachedTop && effortOk;
     }));
 
@@ -286,10 +286,11 @@ export class WorkoutEngineService {
         safety.allowedIntensity,
         exercise.movement_pattern === 'cardio-baixo-impacto',
       );
+      const mayUseHistory = !prescription.durationSeconds && safety.allowedIntensity !== 'leve' && checkin.status !== 'recovery';
       return {
         ...exercise,
         ...prescription,
-        suggestedLoadKg: prescription.durationSeconds ? null : await this.suggestedLoad(userId, exercise.id),
+        suggestedLoadKg: mayUseHistory ? await this.suggestedLoad(userId, exercise.id) : null,
       };
     }));
 
