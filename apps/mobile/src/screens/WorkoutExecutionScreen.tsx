@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -115,6 +116,14 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     }
   };
 
+  const openVideo = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
@@ -169,36 +178,43 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.instructions ? <Text style={styles.instructions}>{currentExercise.instructions}</Text> : null}
 
+          {currentExercise.videoUrl ? (
+            <>
+              <TouchableOpacity onPress={() => void openVideo(currentExercise.videoUrl!)} style={styles.videoButton}>
+                <Text style={styles.videoButtonText}>Abrir vídeo de referência</Text>
+              </TouchableOpacity>
+              {currentExercise.videoAttribution ? (
+                <Text style={styles.videoCredit}>
+                  {currentExercise.videoAttribution}{currentExercise.videoLicense ? ` · ${currentExercise.videoLicense}` : ''}
+                </Text>
+              ) : null}
+            </>
+          ) : null}
+
           {currentExercise.durationSeconds ? (
             <View style={styles.timedCard}>
               <Text style={styles.timedText}>Realize o exercício pelo tempo indicado e confirme ao concluir.</Text>
             </View>
           ) : (
-            <>
-              <View style={styles.inputRow}>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Repetições</Text>
-                  <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Carga (kg)</Text>
-                  <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
-                </View>
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>RIR</Text>
-                  <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
-                </View>
+            <View style={styles.inputRow}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Repetições</Text>
+                <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
               </View>
-            </>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Carga (kg)</Text>
+                <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>RIR</Text>
+                <TextInput value={rir} onChangeText={setRir} keyboardType="decimal-pad" style={styles.input} placeholder="2" />
+              </View>
+            </View>
           )}
 
           <TouchableOpacity disabled={saving || restRemaining > 0} onPress={saveCurrentSet} style={[styles.primaryButton, (saving || restRemaining > 0) && styles.disabled]}>
             {saving ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Concluir série</Text>}
           </TouchableOpacity>
-
-          {currentExercise.videoUrl ? (
-            <View style={styles.videoBadge}><Text style={styles.videoBadgeText}>Vídeo demonstrativo disponível</Text></View>
-          ) : null}
         </View>
       ) : (
         <View style={styles.finishCard}>
@@ -261,7 +277,10 @@ const styles = StyleSheet.create({
   targetItem: { flex: 1 },
   targetValue: { color: theme.colors.text, fontWeight: '900', fontSize: 14 },
   targetLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
-  instructions: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 16 },
+  instructions: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 12 },
+  videoButton: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4 },
+  videoButtonText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginBottom: 10 },
   timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14 },
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
@@ -273,8 +292,6 @@ const styles = StyleSheet.create({
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
   disabled: { opacity: 0.45 },
-  videoBadge: { alignSelf: 'center', backgroundColor: '#EEF7DE', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 7, marginTop: 12 },
-  videoBadgeText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   finishCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
   finishTitle: { color: theme.colors.navy, fontSize: 22, fontWeight: '900' },
   finishText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 6, marginBottom: 8 },
