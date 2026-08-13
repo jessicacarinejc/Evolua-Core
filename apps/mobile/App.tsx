@@ -15,6 +15,7 @@ import { sessionStore } from './src/auth/session';
 import { OnboardingData } from './src/onboarding/types';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { DailyCheckinScreen } from './src/screens/DailyCheckinScreen';
+import { NutritionScreen } from './src/screens/NutritionScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { WorkoutScreen } from './src/screens/WorkoutScreen';
 import { theme } from './src/theme';
@@ -136,7 +137,7 @@ function PlaceholderScreen({ title }: { title: Tab }) {
   const descriptions: Record<Tab, string> = {
     Hoje: '',
     Treino: '',
-    Nutrição: 'Plano alimentar, diário, macros, restrições, hidratação e substituições.',
+    Nutrição: '',
     Evolução: 'Peso, medidas, fotos, aderência, cargas e indicadores de progresso.',
     Perfil: 'Objetivos, saúde, preferências, equipamentos, consentimentos e conta.',
   };
@@ -215,6 +216,9 @@ export default function App() {
     }
     if (activeTab === 'Treino') {
       return <WorkoutScreen token={token} onNeedCheckin={() => setStage('checkin')} />;
+    }
+    if (activeTab === 'Nutrição') {
+      return <NutritionScreen profile={profile} />;
     }
     return <PlaceholderScreen title={activeTab} />;
   }, [activeTab, profile, recovery, token]);
