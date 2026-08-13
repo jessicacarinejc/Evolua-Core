@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { api, WorkoutPlan, WorkoutSession, WorkoutSummary } from '../api/client';
+import { api, TaiChiRoutine, WorkoutPlan, WorkoutSession, WorkoutSummary } from '../api/client';
 import { theme } from '../theme';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
@@ -17,6 +17,45 @@ type Props = {
   token: string | null;
   onNeedCheckin: () => void;
 };
+
+type TaiChiOption = {
+  route: TaiChiRoutine;
+  routineKey: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+};
+
+const taiChiOptions: TaiChiOption[] = [
+  {
+    route: '15-min',
+    routineKey: 'tai_chi_15',
+    eyebrow: 'TAI CHI · 15 MIN',
+    title: 'Dinâmico e contínuo',
+    description: 'Despertar do Qi, Mãos como Nuvens, Repelir o Macaco e Abraçar a Árvore. Foco em continuidade, postura e participação das pernas.',
+  },
+  {
+    route: 'walking',
+    routineKey: 'tai_chi_walking',
+    eyebrow: 'TAI CHI WALKING · 10–15 MIN',
+    title: 'Caminhada consciente e equilíbrio',
+    description: 'Transferência de peso, passos à frente com apoio do calcanhar e passos para trás com toque inicial da ponta do pé. A duração se adapta entre 10 e 15 minutos.',
+  },
+  {
+    route: 'chen-20',
+    routineKey: 'tai_chi_chen_20',
+    eyebrow: 'ESTILO CHEN · 20 MIN',
+    title: 'Força isométrica fundamental',
+    description: 'Postura do Arco e movimentos de empurrar com tempo sob tensão. A profundidade da base é reduzida quando o check-in indicar dor ou recuperação baixa.',
+  },
+  {
+    route: 'yang-25-30',
+    routineKey: 'tai_chi_yang_25_30',
+    eyebrow: 'ESTILO YANG · 25–30 MIN',
+    title: 'Fluidez, cintura e coordenação',
+    description: 'Aparar a Cauda do Pássaro, Mãos como Nuvens e movimentos circulares contínuos. A rotação é adaptada ao conforto da coluna e do quadril.',
+  },
+];
 
 function repsLabel(plan: WorkoutPlan['exercises'][number]) {
   if (plan.durationSeconds) return `${Math.round(plan.durationSeconds / 60)} min`;
@@ -30,7 +69,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [generatingTaiChi, setGeneratingTaiChi] = useState(false);
+  const [generatingTaiChi, setGeneratingTaiChi] = useState<TaiChiRoutine | null>(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -71,12 +110,12 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     }
   };
 
-  const generateTaiChi = async () => {
+  const generateTaiChi = async (routine: TaiChiRoutine) => {
     if (!token) return;
-    setGeneratingTaiChi(true);
+    setGeneratingTaiChi(routine);
     setSummary(null);
     try {
-      setPlan(await api.generateTaiChi15Workout(token));
+      setPlan(await api.generateTaiChiWorkout(token, routine));
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Não foi possível preparar o Tai Chi.';
       Alert.alert('Tai Chi não preparado', message, [
@@ -84,7 +123,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         { text: 'Fazer check-in', onPress: onNeedCheckin },
       ]);
     } finally {
-      setGeneratingTaiChi(false);
+      setGeneratingTaiChi(null);
     }
   };
 
@@ -140,7 +179,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
 
   if (!plan) {
     return (
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>TREINO</Text>
         <Text style={styles.title}>{summary ? 'Treino concluído' : 'Seu treino de hoje'}</Text>
         <Text style={styles.subtitle}>
@@ -164,20 +203,32 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         )}
 
         {!summary ? (
-          <TouchableOpacity disabled={generating} onPress={generate} style={styles.primaryButton}>
-            {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de hoje</Text>}
+          <TouchableOpacity disabled={generating || generatingTaiChi != null} onPress={generate} style={styles.primaryButton}>
+            {generating ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Gerar treino de musculação</Text>}
           </TouchableOpacity>
         ) : null}
 
         {!summary ? (
-          <View style={styles.taiChiCard}>
-            <Text style={styles.taiChiEyebrow}>TAI CHI · 15 MINUTOS</Text>
-            <Text style={styles.taiChiTitle}>Movimento contínuo para elevar o gasto energético</Text>
-            <Text style={styles.taiChiText}>Quatro blocos guiados: Despertar do Qi (3 min), Mãos como Nuvens (5 min), Repelir o Macaco (4 min) e Abraçar a Árvore (3 min). A postura é adaptada ao check-in e às dores informadas.</Text>
-            <TouchableOpacity disabled={generatingTaiChi} onPress={generateTaiChi} style={styles.taiChiButton}>
-              {generatingTaiChi ? <ActivityIndicator color={theme.colors.white} /> : <Text style={styles.taiChiButtonText}>Preparar Tai Chi de 15 min</Text>}
-            </TouchableOpacity>
-          </View>
+          <>
+            <Text style={styles.sectionTitle}>Treinos de Tai Chi</Text>
+            <Text style={styles.sectionIntro}>Escolha uma rotina. Todas passam pelo check-in do dia e podem reduzir postura, rotação ou amplitude quando houver limitação informada.</Text>
+            {taiChiOptions.map((option) => (
+              <View key={option.route} style={styles.taiChiCard}>
+                <Text style={styles.taiChiEyebrow}>{option.eyebrow}</Text>
+                <Text style={styles.taiChiTitle}>{option.title}</Text>
+                <Text style={styles.taiChiText}>{option.description}</Text>
+                <TouchableOpacity
+                  disabled={generatingTaiChi != null || generating}
+                  onPress={() => void generateTaiChi(option.route)}
+                  style={styles.taiChiButton}
+                >
+                  {generatingTaiChi === option.route
+                    ? <ActivityIndicator color={theme.colors.white} />
+                    : <Text style={styles.taiChiButtonText}>Preparar esta rotina</Text>}
+                </TouchableOpacity>
+              </View>
+            ))}
+          </>
         ) : null}
 
         <TouchableOpacity onPress={onNeedCheckin} style={styles.secondaryButton}>
@@ -186,6 +237,8 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
       </ScrollView>
     );
   }
+
+  const currentRoutine = plan.safety?.routine;
 
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -239,15 +292,25 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         {starting ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Iniciar treino</Text>}
       </TouchableOpacity>
 
-      <TouchableOpacity disabled={generating || starting} onPress={generate} style={styles.secondaryButton}>
-        <Text style={styles.secondaryButtonText}>{generating ? 'Recalculando...' : 'Recalcular com check-in atual'}</Text>
+      <TouchableOpacity disabled={generating || starting || generatingTaiChi != null} onPress={generate} style={styles.secondaryButton}>
+        <Text style={styles.secondaryButtonText}>{generating ? 'Recalculando...' : 'Trocar por treino de musculação'}</Text>
       </TouchableOpacity>
 
-      {plan.safety?.routine !== 'tai_chi_15' ? (
-        <TouchableOpacity disabled={generatingTaiChi || starting} onPress={generateTaiChi} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>{generatingTaiChi ? 'Preparando Tai Chi...' : 'Trocar por Tai Chi · 15 min'}</Text>
-        </TouchableOpacity>
-      ) : null}
+      <Text style={styles.switchTitle}>Trocar por outra rotina de Tai Chi</Text>
+      {taiChiOptions
+        .filter((option) => option.routineKey !== currentRoutine)
+        .map((option) => (
+          <TouchableOpacity
+            key={option.route}
+            disabled={generatingTaiChi != null || starting}
+            onPress={() => void generateTaiChi(option.route)}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryButtonText}>
+              {generatingTaiChi === option.route ? 'Preparando...' : `${option.title} · ${option.eyebrow.replace('TAI CHI · ', '').replace('TAI CHI WALKING · ', '').replace('ESTILO CHEN · ', '').replace('ESTILO YANG · ', '')}`}
+            </Text>
+          </TouchableOpacity>
+        ))}
 
       <View style={styles.noticeCard}>
         <Text style={styles.noticeTitle}>Execução segura</Text>
@@ -267,7 +330,9 @@ const styles = StyleSheet.create({
   infoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 18 },
   infoTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   infoText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 19, marginTop: 5 },
-  taiChiCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginTop: 14 },
+  sectionTitle: { color: theme.colors.text, fontSize: 20, fontWeight: '900', marginTop: 26, marginBottom: 6 },
+  sectionIntro: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 4 },
+  taiChiCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginTop: 12 },
   taiChiEyebrow: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.4 },
   taiChiTitle: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 6 },
   taiChiText: { color: '#C8D4E3', fontSize: 12, lineHeight: 19, marginTop: 8 },
@@ -278,8 +343,9 @@ const styles = StyleSheet.create({
   summaryLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
-  secondaryButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 12 },
-  secondaryButtonText: { color: theme.colors.navy, fontWeight: '900' },
+  secondaryButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 12, alignItems: 'center', marginTop: 12 },
+  secondaryButtonText: { color: theme.colors.navy, fontWeight: '900', textAlign: 'center' },
+  switchTitle: { color: theme.colors.text, fontSize: 14, fontWeight: '900', marginTop: 24 },
   safetyCard: { backgroundColor: '#FFF4E5', borderRadius: 18, padding: 16, marginBottom: 16 },
   safetyTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },
   safetyText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5 },
