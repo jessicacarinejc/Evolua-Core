@@ -30,4 +30,9 @@ export class ProgressController {
   workouts(@Req() request: AuthenticatedRequest) {
     return this.progress.listWorkouts(request.auth.userId);
   }
+
+  @Get('strength')
+  strength(@Req() request: AuthenticatedRequest) {
+    return this.progress.strengthInsights(request.auth.userId);
+  }
 }
