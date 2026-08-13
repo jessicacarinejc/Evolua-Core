@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 
 export class SaveWorkoutSetDto {
   @IsUUID()
@@ -48,4 +48,41 @@ export class CompleteWorkoutSessionDto {
   @IsString()
   @MaxLength(1000)
   feedback?: string;
+}
+
+export class ReportWorkoutEventDto {
+  @IsIn(['pain', 'dizziness', 'shortness_of_breath', 'other'])
+  type!: 'pain' | 'dizziness' | 'shortness_of_breath' | 'other';
+
+  @IsOptional()
+  @IsUUID()
+  exerciseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  bodyArea?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  severity!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}
+
+export class SubstituteWorkoutExerciseDto {
+  @IsUUID()
+  currentExerciseId!: string;
+
+  @IsUUID()
+  replacementExerciseId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
 }
