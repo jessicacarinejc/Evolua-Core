@@ -20,22 +20,184 @@ type ExerciseRow = {
   video_attribution: string | null;
 };
 
-const taiChiSequence = [
+export type TaiChiRoutineKey = 'tai_chi_15' | 'tai_chi_walking' | 'tai_chi_chen_20' | 'tai_chi_yang_25_30';
+
+type RoutineStep = {
+  slug: string;
+  durationSeconds: number;
+};
+
+type RoutineSpec = {
+  key: TaiChiRoutineKey;
+  title: string;
+  minMinutes: number;
+  estimatedMinutes: number;
+  sequence: RoutineStep[];
+};
+
+const taiChi15Sequence: RoutineStep[] = [
   { slug: 'tai-chi-despertar-qi', durationSeconds: 180 },
   { slug: 'tai-chi-maos-como-nuvens', durationSeconds: 300 },
   { slug: 'tai-chi-repelir-macaco', durationSeconds: 240 },
   { slug: 'tai-chi-abracar-arvore', durationSeconds: 180 },
-] as const;
+];
 
 function normalize(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 @Injectable()
 export class TaiChiWorkoutService {
   constructor(private readonly db: DatabaseService) {}
 
-  async generate15Minute(userId: string) {
+  generate15Minute(userId: string) {
+    return this.generateRoutine(userId, 'tai_chi_15');
+  }
+
+  generateWalking(userId: string) {
+    return this.generateRoutine(userId, 'tai_chi_walking');
+  }
+
+  generateChen20(userId: string) {
+    return this.generateRoutine(userId, 'tai_chi_chen_20');
+  }
+
+  generateYang25To30(userId: string) {
+    return this.generateRoutine(userId, 'tai_chi_yang_25_30');
+  }
+
+  private resolveRoutine(key: TaiChiRoutineKey, availableMinutes: number): RoutineSpec {
+    if (key === 'tai_chi_15') {
+      return {
+        key,
+        title: 'Tai Chi dinâmico · 15 min',
+        minMinutes: 15,
+        estimatedMinutes: 15,
+        sequence: taiChi15Sequence,
+      };
+    }
+
+    if (key === 'tai_chi_walking') {
+      const estimatedMinutes = clamp(availableMinutes, 10, 15);
+      const totalSeconds = estimatedMinutes * 60;
+      const fixedSeconds = 240;
+      const walkingSeconds = totalSeconds - fixedSeconds;
+      const forwardSeconds = Math.round(walkingSeconds * 0.6);
+      const backwardSeconds = walkingSeconds - forwardSeconds;
+
+      return {
+        key,
+        title: `Caminhada Tai Chi · ${estimatedMinutes} min`,
+        minMinutes: 10,
+        estimatedMinutes,
+        sequence: [
+          { slug: 'tai-chi-transferencia-equilibrio', durationSeconds: 120 },
+          { slug: 'tai-chi-caminhada-frente', durationSeconds: forwardSeconds },
+          { slug: 'tai-chi-caminhada-tras', durationSeconds: backwardSeconds },
+          { slug: 'tai-chi-abracar-arvore', durationSeconds: 120 },
+        ],
+      };
+    }
+
+    if (key === 'tai_chi_chen_20') {
+      return {
+        key,
+        title: 'Tai Chi Chen · Força isométrica · 20 min',
+        minMinutes: 20,
+        estimatedMinutes: 20,
+        sequence: [
+          { slug: 'tai-chi-despertar-qi', durationSeconds: 180 },
+          { slug: 'tai-chi-chen-postura-arco', durationSeconds: 360 },
+          { slug: 'tai-chi-chen-empurrar-arco', durationSeconds: 480 },
+          { slug: 'tai-chi-abracar-arvore', durationSeconds: 180 },
+        ],
+      };
+    }
+
+    const estimatedMinutes = clamp(availableMinutes, 25, 30);
+    const mainSequenceSeconds = (estimatedMinutes - 11) * 60;
+    return {
+      key,
+      title: `Tai Chi Yang · Fluidez e cintura · ${estimatedMinutes} min`,
+      minMinutes: 25,
+      estimatedMinutes,
+      sequence: [
+        { slug: 'tai-chi-despertar-qi', durationSeconds: 180 },
+        { slug: 'tai-chi-yang-aparar-cauda-passaro', durationSeconds: mainSequenceSeconds },
+        { slug: 'tai-chi-maos-como-nuvens', durationSeconds: 300 },
+        { slug: 'tai-chi-abracar-arvore', durationSeconds: 180 },
+      ],
+    };
+  }
+
+  private buildSafetyNotes(routine: TaiChiRoutineKey, checkin: CheckinRow) {
+    const pain = new Set((checkin.pain_areas ?? []).map(normalize));
+    const hasKneePain = [...pain].some((item) => item.includes('joelho'));
+    const hasLumbarPain = [...pain].some((item) => item.includes('lombar') || item.includes('coluna'));
+    const hasHipOrAnklePain = [...pain].some((item) => item.includes('quadril') || item.includes('tornozelo'));
+    const isRecovery = checkin.status === 'recovery';
+
+    const notes = [
+      'Mantenha a respiração fluida e os movimentos controlados. A intensidade deve vir da continuidade e do controle postural, não de movimentos bruscos.',
+    ];
+
+    if (routine === 'tai_chi_walking') {
+      notes.push(
+        hasKneePain
+          ? 'Dor no joelho informada: use flexão mínima, passos mais curtos e evite sustentar postura baixa.'
+          : 'Mantenha leve flexão dos joelhos durante os passos para aumentar a participação muscular das pernas sem comprometer o alinhamento.',
+      );
+      notes.push(
+        hasHipOrAnklePain
+          ? 'Desconforto em quadril/tornozelo informado: reduza o comprimento dos passos e priorize transferência de peso no lugar.'
+          : 'Nos passos para trás, use espaço livre e apoio firme por perto; toque a ponta do pé antes de transferir o peso.',
+      );
+    } else if (routine === 'tai_chi_chen_20') {
+      notes.push(
+        hasKneePain
+          ? 'Dor no joelho informada: a Postura do Arco deve ser mais alta, com base curta e sem aprofundar a flexão.'
+          : 'A Postura do Arco pode ficar moderadamente mais baixa somente enquanto alinhamento, respiração e conforto forem mantidos.',
+      );
+      notes.push('O foco é aumentar a demanda muscular das pernas por tempo sob tensão, sem transformar a sequência em exercício explosivo.');
+    } else if (routine === 'tai_chi_yang_25_30') {
+      notes.push(
+        hasLumbarPain
+          ? 'Desconforto lombar/coluna informado: reduza a amplitude de rotação e faça a transferência de peso com o tronco mais neutro.'
+          : 'Use rotação suave do tronco e transferência contínua de peso para recrutar core e oblíquos sem forçar a lombar.',
+      );
+      notes.push('A rotação da cintura não é apresentada como forma de reduzir gordura localizada nem como massagem de órgãos internos.');
+    } else {
+      notes.push(
+        hasKneePain
+          ? 'Dor no joelho informada: use postura mais alta e menor flexão dos joelhos; não force a posição de cavalgada.'
+          : 'Para elevar o esforço, a postura pode ficar um pouco mais baixa apenas se houver conforto e bom alinhamento dos joelhos.',
+      );
+      notes.push(
+        hasLumbarPain
+          ? 'Desconforto lombar/coluna informado: reduza a amplitude de rotação do tronco no Repelir o Macaco.'
+          : 'Mantenha a rotação do tronco suave e coordenada, sem movimentos bruscos.',
+      );
+    }
+
+    if (isRecovery) {
+      notes.push('Recuperação baixa: execute em ritmo leve, com postura mais alta e menor amplitude, priorizando controle e respiração.');
+    } else {
+      notes.push('A proposta é elevar o gasto energético pela continuidade do movimento e pelo trabalho muscular, sem prometer uma quantidade específica de calorias.');
+    }
+
+    return {
+      notes,
+      isRecovery,
+      hasKneePain,
+      hasLumbarPain,
+    };
+  }
+
+  private async generateRoutine(userId: string, routineKey: TaiChiRoutineKey) {
     const profileResult = await this.db.query<{ primary_goal: string | null }>(
       `SELECT primary_goal FROM profiles WHERE user_id = $1`,
       [userId],
@@ -59,11 +221,13 @@ export class TaiChiWorkoutService {
     if (checkin.status === 'professional_review_required') {
       throw new BadRequestException('O check-in de hoje requer revisão profissional antes de iniciar treino automático.');
     }
-    if (checkin.available_minutes < 15) {
-      throw new BadRequestException('Reserve pelo menos 15 minutos para esta rotina de Tai Chi.');
+
+    const routine = this.resolveRoutine(routineKey, checkin.available_minutes);
+    if (checkin.available_minutes < routine.minMinutes) {
+      throw new BadRequestException(`Reserve pelo menos ${routine.minMinutes} minutos para esta rotina de Tai Chi.`);
     }
 
-    const slugs = taiChiSequence.map((item) => item.slug);
+    const slugs = routine.sequence.map((item) => item.slug);
     const catalogResult = await this.db.query<ExerciseRow>(
       `SELECT
          e.id, e.slug, e.name, e.primary_muscle, e.instructions, e.safety_notes,
@@ -80,28 +244,12 @@ export class TaiChiWorkoutService {
       [slugs],
     );
 
-    if (catalogResult.rows.length !== taiChiSequence.length) {
+    if (catalogResult.rows.length !== new Set(slugs).size) {
       throw new BadRequestException('A rotina de Tai Chi ainda não está completamente cadastrada no catálogo.');
     }
 
     const catalog = new Map(catalogResult.rows.map((exercise) => [exercise.slug, exercise]));
-    const pain = new Set((checkin.pain_areas ?? []).map(normalize));
-    const hasKneePain = [...pain].some((item) => item.includes('joelho'));
-    const hasLumbarPain = [...pain].some((item) => item.includes('lombar') || item.includes('coluna'));
-    const isRecovery = checkin.status === 'recovery';
-
-    const safetyNotes = [
-      'Mantenha o abdômen levemente ativo e use movimentos contínuos, sem prender a respiração.',
-      hasKneePain
-        ? 'Dor no joelho informada: use postura mais alta e menor flexão dos joelhos; não force a posição de cavalgada.'
-        : 'Para elevar o esforço, a postura pode ficar um pouco mais baixa apenas se houver conforto e bom alinhamento dos joelhos.',
-      hasLumbarPain
-        ? 'Desconforto lombar/coluna informado: reduza a amplitude de rotação do tronco no Repelir o Macaco.'
-        : 'Mantenha a rotação do tronco suave e coordenada, sem movimentos bruscos.',
-      isRecovery
-        ? 'Recuperação baixa: execute em ritmo leve e postura mais alta, priorizando mobilidade e respiração.'
-        : 'A proposta é aumentar o gasto energético com continuidade, controle postural e participação das pernas, sem prometer redução de gordura localizada.',
-    ];
+    const safety = this.buildSafetyNotes(routineKey, checkin);
 
     const planId = await this.db.transaction(async (client) => {
       await client.query(
@@ -114,24 +262,25 @@ export class TaiChiWorkoutService {
       const planResult = await client.query<{ id: string }>(
         `INSERT INTO workout_plans (
            user_id, status, goal, planned_date, estimated_minutes, generation_source, safety_snapshot
-         ) VALUES ($1, 'draft', $2, CURRENT_DATE, 15, 'rules', $3::jsonb)
+         ) VALUES ($1, 'draft', $2, CURRENT_DATE, $3, 'rules', $4::jsonb)
          RETURNING id`,
         [
           userId,
           goal,
+          routine.estimatedMinutes,
           JSON.stringify({
-            split: 'Tai Chi dinâmico · 15 min',
-            routine: 'tai_chi_15',
+            split: routine.title,
+            routine: routine.key,
             recoveryScore: checkin.recovery_score,
-            allowedIntensity: isRecovery ? 'leve' : 'moderada',
-            notes: safetyNotes,
+            allowedIntensity: safety.isRecovery ? 'leve' : routineKey === 'tai_chi_chen_20' ? 'moderada' : 'moderada',
+            notes: safety.notes,
           }),
         ],
       );
       const id = planResult.rows[0].id;
 
-      for (let index = 0; index < taiChiSequence.length; index += 1) {
-        const sequence = taiChiSequence[index];
+      for (let index = 0; index < routine.sequence.length; index += 1) {
+        const sequence = routine.sequence[index];
         const exercise = catalog.get(sequence.slug)!;
         await client.query(
           `INSERT INTO workout_plan_exercises (
@@ -143,8 +292,8 @@ export class TaiChiWorkoutService {
             exercise.id,
             index + 1,
             sequence.durationSeconds,
-            isRecovery ? 5 : 3,
-            safetyNotes[index] ?? exercise.safety_notes,
+            safety.isRecovery ? 5 : routineKey === 'tai_chi_chen_20' ? 3 : 4,
+            exercise.safety_notes,
           ],
         );
       }
