@@ -10,6 +10,7 @@ import {
 } from './workout-session.dto';
 import { WorkoutSessionService } from './workout-session.service';
 import { WorkoutEngineService } from './workout-engine.service';
+import { WeeklyWorkoutService } from './weekly-workout.service';
 
 @Controller('workouts')
 @UseGuards(AuthGuard)
@@ -19,7 +20,13 @@ export class WorkoutsController {
     private readonly sessions: WorkoutSessionService,
     private readonly taiChi: TaiChiWorkoutService,
     private readonly calisthenics: CalisthenicsWorkoutService,
+    private readonly weekly: WeeklyWorkoutService,
   ) {}
+
+  @Get('week')
+  getWeek(@Req() request: AuthenticatedRequest) {
+    return this.weekly.getWeek(request.auth.userId);
+  }
 
   @Get('today')
   getToday(@Req() request: AuthenticatedRequest) {
