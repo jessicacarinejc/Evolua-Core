@@ -83,6 +83,28 @@ export type WorkoutSetRecord = {
   completedAt: string | null;
 };
 
+export type WorkoutSafetyEvent = {
+  id: string;
+  exerciseId: string | null;
+  type: 'pain' | 'symptom' | 'substitution';
+  bodyArea: string | null;
+  severity: number | null;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+export type WorkoutSubstitutionCandidate = {
+  id: string;
+  name: string;
+  primaryMuscle: string;
+  movementPattern: string;
+  instructions: string | null;
+  safetyNotes: string | null;
+  videoUrl: string | null;
+  reason: string;
+};
+
 export type WorkoutSessionExercise = {
   id: string;
   name: string;
@@ -113,6 +135,7 @@ export type WorkoutSession = {
     estimatedMinutes: number | null;
     safety: WorkoutPlan['safety'];
   };
+  safetyEvents?: WorkoutSafetyEvent[];
   exercises: WorkoutSessionExercise[];
 };
 
@@ -383,6 +406,53 @@ export const api = {
   ): Promise<WorkoutSession> {
     return request<WorkoutSession>(`/workouts/sessions/${sessionId}/sets`, {
       method: 'PUT',
+      body: JSON.stringify(input),
+    }, token);
+  },
+
+  async reportWorkoutEvent(
+    token: string,
+    sessionId: string,
+    input: {
+      type: 'pain' | 'dizziness' | 'shortness_of_breath' | 'other';
+      exerciseId?: string;
+      bodyArea?: string;
+      severity: number;
+      notes?: string;
+    },
+  ): Promise<{
+    saved: boolean;
+    stopRecommended: boolean;
+    professionalReviewRecommended: boolean;
+    substitutionRecommended: boolean;
+    message: string;
+    session: WorkoutSession;
+  }> {
+    return request(`/workouts/sessions/${sessionId}/events`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }, token);
+  },
+
+  async getWorkoutSubstitutions(
+    token: string,
+    sessionId: string,
+    exerciseId: string,
+  ): Promise<{
+    currentExercise: { id: string; name: string; primaryMuscle: string };
+    candidates: WorkoutSubstitutionCandidate[];
+    safety: { blockedPatterns: string[]; painAreas: string[] };
+  }> {
+    return request(`/workouts/sessions/${sessionId}/exercises/${exerciseId}/substitutions`, {}, token);
+  },
+
+  async substituteWorkoutExercise(
+    token: string,
+    sessionId: string,
+    input: { currentExerciseId: string; replacementExerciseId: string; reason?: string },
+  ): Promise<WorkoutSession> {
+    return request(`/workouts/sessions/${sessionId}/substitute`, {
+      method: 'POST',
       body: JSON.stringify(input),
     }, token);
   },
