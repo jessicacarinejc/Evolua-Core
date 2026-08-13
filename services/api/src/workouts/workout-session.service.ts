@@ -24,6 +24,8 @@ type ExerciseRow = {
   primary_muscle: string;
   instructions: string | null;
   video_url: string | null;
+  video_license: string | null;
+  video_attribution: string | null;
   sequence: number;
   sets: number;
   reps_min: number | null;
@@ -202,12 +204,14 @@ export class WorkoutSessionService {
       `SELECT
          e.id, e.name, e.primary_muscle, e.instructions,
          COALESCE(v.url, e.video_url) AS video_url,
+         v.license AS video_license,
+         v.attribution AS video_attribution,
          wpe.sequence, wpe.sets, wpe.reps_min, wpe.reps_max,
          wpe.duration_seconds, wpe.rest_seconds, wpe.target_rir
        FROM workout_plan_exercises wpe
        JOIN exercises e ON e.id = wpe.exercise_id
        LEFT JOIN LATERAL (
-         SELECT ev.url FROM exercise_videos ev
+         SELECT ev.url, ev.license, ev.attribution FROM exercise_videos ev
          WHERE ev.exercise_id = e.id
          ORDER BY ev.is_primary DESC, ev.created_at ASC
          LIMIT 1
@@ -244,6 +248,8 @@ export class WorkoutSessionService {
         primaryMuscle: exercise.primary_muscle,
         instructions: exercise.instructions,
         videoUrl: exercise.video_url,
+        videoLicense: exercise.video_license,
+        videoAttribution: exercise.video_attribution,
         order: exercise.sequence,
         plannedSets: exercise.sets,
         repsMin: exercise.reps_min,
