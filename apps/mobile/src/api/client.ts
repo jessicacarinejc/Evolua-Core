@@ -63,6 +63,10 @@ export type WorkoutPlan = {
     recoveryScore?: number;
     allowedIntensity?: 'leve' | 'moderada' | 'alta';
     blockedPatterns?: string[];
+    rounds?: number;
+    workSeconds?: number;
+    transitionSeconds?: number;
+    roundRestSeconds?: number;
     notes?: string[];
   };
   exercises: WorkoutExercise[];
@@ -214,6 +218,10 @@ export const api = {
 
   async generateTaiChi15Workout(token: string): Promise<WorkoutPlan> {
     return this.generateTaiChiWorkout(token, '15-min');
+  },
+
+  async generateCalisthenicsCircuit(token: string): Promise<WorkoutPlan> {
+    return request<WorkoutPlan>('/workouts/calisthenics/circuit', { method: 'POST' }, token);
   },
 
   async getActiveWorkoutSession(token: string): Promise<WorkoutSession | null> {
