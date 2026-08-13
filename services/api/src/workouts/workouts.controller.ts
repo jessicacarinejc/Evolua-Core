@@ -29,6 +29,21 @@ export class WorkoutsController {
     return this.taiChi.generate15Minute(request.auth.userId);
   }
 
+  @Post('tai-chi/walking')
+  generateTaiChiWalking(@Req() request: AuthenticatedRequest) {
+    return this.taiChi.generateWalking(request.auth.userId);
+  }
+
+  @Post('tai-chi/chen-20')
+  generateTaiChiChen20(@Req() request: AuthenticatedRequest) {
+    return this.taiChi.generateChen20(request.auth.userId);
+  }
+
+  @Post('tai-chi/yang-25-30')
+  generateTaiChiYang(@Req() request: AuthenticatedRequest) {
+    return this.taiChi.generateYang25To30(request.auth.userId);
+  }
+
   @Get('sessions/active')
   getActiveSession(@Req() request: AuthenticatedRequest) {
     return this.sessions.getActive(request.auth.userId);
