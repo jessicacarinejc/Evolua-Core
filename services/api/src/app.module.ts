@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
+import { CalisthenicsWorkoutService } from './workouts/calisthenics-workout.service';
 import { DailyCheckinController } from './checkins/daily-checkin.controller';
 import { DailyCheckinService } from './checkins/daily-checkin.service';
 import { DatabaseService } from './database/database.service';
@@ -38,6 +39,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     WorkoutEngineService,
     WorkoutSessionService,
     TaiChiWorkoutService,
+    CalisthenicsWorkoutService,
   ],
 })
 export class AppModule {}
