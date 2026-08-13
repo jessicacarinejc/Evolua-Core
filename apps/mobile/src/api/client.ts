@@ -33,6 +33,8 @@ export type DailyCheckinResult = {
   };
 };
 
+export type TaiChiRoutine = '15-min' | 'walking' | 'chen-20' | 'yang-25-30';
+
 export type WorkoutExercise = {
   id: string;
   name: string;
@@ -206,8 +208,12 @@ export const api = {
     return request<WorkoutPlan>('/workouts/today', { method: 'POST' }, token);
   },
 
+  async generateTaiChiWorkout(token: string, routine: TaiChiRoutine): Promise<WorkoutPlan> {
+    return request<WorkoutPlan>(`/workouts/tai-chi/${routine}`, { method: 'POST' }, token);
+  },
+
   async generateTaiChi15Workout(token: string): Promise<WorkoutPlan> {
-    return request<WorkoutPlan>('/workouts/tai-chi/15-min', { method: 'POST' }, token);
+    return this.generateTaiChiWorkout(token, '15-min');
   },
 
   async getActiveWorkoutSession(token: string): Promise<WorkoutSession | null> {
