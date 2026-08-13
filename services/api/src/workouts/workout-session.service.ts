@@ -88,8 +88,13 @@ export class WorkoutSessionService {
       );
 
       await client.query(
-        `INSERT INTO workout_sets (workout_session_id, exercise_id, set_number, completed)
-         SELECT $1, wpe.exercise_id, generated.set_number, false
+        `INSERT INTO workout_sets (workout_session_id, exercise_id, set_number, load_kg, completed)
+         SELECT
+           $1,
+           wpe.exercise_id,
+           generated.set_number,
+           CASE WHEN wpe.duration_seconds IS NULL THEN wpe.suggested_load_kg ELSE NULL END,
+           false
          FROM workout_plan_exercises wpe
          CROSS JOIN LATERAL generate_series(1, wpe.sets) AS generated(set_number)
          WHERE wpe.workout_plan_id = $2
