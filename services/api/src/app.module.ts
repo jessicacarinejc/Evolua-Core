@@ -9,6 +9,8 @@ import { DatabaseService } from './database/database.service';
 import { ExercisesController } from './exercises/exercises.controller';
 import { ExercisesService } from './exercises/exercises.service';
 import { HealthController } from './health.controller';
+import { NutritionController } from './nutrition/nutrition.controller';
+import { NutritionService } from './nutrition/nutrition.service';
 import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingSafetyService } from './onboarding/onboarding-safety.service';
 import { OnboardingService } from './onboarding/onboarding.service';
@@ -29,6 +31,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     ExercisesController,
     WorkoutsController,
     ProgressController,
+    NutritionController,
   ],
   providers: [
     DatabaseService,
@@ -44,6 +47,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     TaiChiWorkoutService,
     CalisthenicsWorkoutService,
     ProgressService,
+    NutritionService,
   ],
 })
 export class AppModule {}
