@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest, AuthGuard } from '../auth/auth.guard';
+import { CalisthenicsWorkoutService } from './calisthenics-workout.service';
 import { TaiChiWorkoutService } from './tai-chi-workout.service';
 import { CompleteWorkoutSessionDto, SaveWorkoutSetDto } from './workout-session.dto';
 import { WorkoutSessionService } from './workout-session.service';
@@ -12,6 +13,7 @@ export class WorkoutsController {
     private readonly engine: WorkoutEngineService,
     private readonly sessions: WorkoutSessionService,
     private readonly taiChi: TaiChiWorkoutService,
+    private readonly calisthenics: CalisthenicsWorkoutService,
   ) {}
 
   @Get('today')
@@ -42,6 +44,11 @@ export class WorkoutsController {
   @Post('tai-chi/yang-25-30')
   generateTaiChiYang(@Req() request: AuthenticatedRequest) {
     return this.taiChi.generateYang25To30(request.auth.userId);
+  }
+
+  @Post('calisthenics/circuit')
+  generateCalisthenicsCircuit(@Req() request: AuthenticatedRequest) {
+    return this.calisthenics.generateCircuit(request.auth.userId);
   }
 
   @Get('sessions/active')
