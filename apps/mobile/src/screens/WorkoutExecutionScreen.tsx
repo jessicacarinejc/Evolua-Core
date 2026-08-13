@@ -27,6 +27,13 @@ function asNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function durationLabel(seconds: number | null) {
+  if (!seconds) return 'por tempo';
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds % 60 === 0) return `${seconds / 60} min`;
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
 export function WorkoutExecutionScreen({ token, session, onSessionChange, onFinished }: Props) {
   const [reps, setReps] = useState('');
   const [loadKg, setLoadKg] = useState('');
@@ -34,23 +41,60 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
   const [restRemaining, setRestRemaining] = useState(0);
+  const [workRemaining, setWorkRemaining] = useState(0);
+  const [workRunning, setWorkRunning] = useState(false);
   const [perceivedEffort, setPerceivedEffort] = useState('7');
   const [feedback, setFeedback] = useState('');
 
-  const currentExercise = useMemo(
-    () => session.exercises.find((exercise) => exercise.sets.some((set) => !set.completed)) ?? null,
-    [session],
-  );
-  const currentSet = currentExercise?.sets.find((set) => !set.completed) ?? null;
+  const isCircuit = session.plan.safety?.routine === 'calisthenics_circuit';
+  const circuitRound = useMemo(() => {
+    if (!isCircuit) return null;
+    const pendingNumbers = session.exercises
+      .flatMap((exercise) => exercise.sets)
+      .filter((set) => !set.completed)
+      .map((set) => set.setNumber);
+    return pendingNumbers.length ? Math.min(...pendingNumbers) : null;
+  }, [isCircuit, session]);
+
+  const currentExercise = useMemo(() => {
+    if (isCircuit && circuitRound != null) {
+      return session.exercises.find((exercise) =>
+        exercise.sets.some((set) => set.setNumber === circuitRound && !set.completed),
+      ) ?? null;
+    }
+    return session.exercises.find((exercise) => exercise.sets.some((set) => !set.completed)) ?? null;
+  }, [circuitRound, isCircuit, session]);
+
+  const currentSet = useMemo(() => {
+    if (!currentExercise) return null;
+    if (isCircuit && circuitRound != null) {
+      return currentExercise.sets.find((set) => set.setNumber === circuitRound && !set.completed) ?? null;
+    }
+    return currentExercise.sets.find((set) => !set.completed) ?? null;
+  }, [circuitRound, currentExercise, isCircuit]);
+
   const completedSets = session.exercises.flatMap((exercise) => exercise.sets).filter((set) => set.completed).length;
   const totalSets = session.exercises.reduce((total, exercise) => total + exercise.plannedSets, 0);
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+  const rounds = Number(session.plan.safety?.rounds ?? currentExercise?.plannedSets ?? 0);
 
   useEffect(() => {
     if (!restRemaining) return;
     const timer = setInterval(() => setRestRemaining((value) => Math.max(0, value - 1)), 1000);
     return () => clearInterval(timer);
   }, [restRemaining]);
+
+  useEffect(() => {
+    if (!workRunning || workRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setWorkRemaining((value) => {
+        const next = Math.max(0, value - 1);
+        if (next === 0) setWorkRunning(false);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [workRemaining, workRunning]);
 
   useEffect(() => {
     if (!currentExercise || !currentSet) return;
@@ -60,6 +104,8 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     setLoadKg(previous?.loadKg != null ? String(previous.loadKg) : '');
     setReps(previous?.repetitions != null ? String(previous.repetitions) : String(currentExercise.repsMin ?? ''));
     setRir(previous?.rir != null ? String(previous.rir) : String(currentExercise.targetRir ?? ''));
+    setWorkRemaining(currentExercise.durationSeconds ?? 0);
+    setWorkRunning(false);
   }, [currentExercise?.id, currentSet?.setNumber]);
 
   const saveCurrentSet = async () => {
@@ -69,6 +115,10 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     const load = timed ? undefined : asNumber(loadKg);
     const rirValue = asNumber(rir);
 
+    if (timed && workRemaining > 0) {
+      Alert.alert('Bloco ainda em andamento', 'Conclua o tempo do exercício antes de registrar este bloco.');
+      return;
+    }
     if (!timed && (!repetitions || repetitions < 1)) {
       Alert.alert('Informe as repetições', 'Digite quantas repetições foram realizadas nesta série.');
       return;
@@ -86,7 +136,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         completed: true,
       });
       onSessionChange(updated);
-      setRestRemaining(currentExercise.restSeconds ?? 0);
+
+      if (isCircuit) {
+        const isLastExercise = currentExercise.order === session.exercises.length;
+        const isLastRound = currentSet.setNumber >= rounds;
+        if (isLastExercise && !isLastRound) {
+          setRestRemaining(Number(session.plan.safety?.roundRestSeconds ?? 120));
+        } else if (!isLastRound || !isLastExercise) {
+          setRestRemaining(Number(session.plan.safety?.transitionSeconds ?? 20));
+        }
+      } else {
+        setRestRemaining(currentExercise.restSeconds ?? 0);
+      }
     } catch (cause) {
       Alert.alert('Série não salva', cause instanceof Error ? cause.message : 'Tente novamente.');
     } finally {
@@ -133,9 +194,17 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         </View>
         <View style={styles.progressBadge}>
           <Text style={styles.progressValue}>{progress}%</Text>
-          <Text style={styles.progressLabel}>{completedSets}/{totalSets} séries</Text>
+          <Text style={styles.progressLabel}>{completedSets}/{totalSets} blocos</Text>
         </View>
       </View>
+
+      {isCircuit && circuitRound != null ? (
+        <View style={styles.roundCard}>
+          <Text style={styles.roundEyebrow}>CIRCUITO</Text>
+          <Text style={styles.roundValue}>Round {circuitRound} de {rounds}</Text>
+          <Text style={styles.roundText}>40s de trabalho · 20s de transição · 2 min entre rounds</Text>
+        </View>
+      ) : null}
 
       <View style={styles.progressTrack}>
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
@@ -143,7 +212,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
       {restRemaining > 0 ? (
         <View style={styles.restCard}>
-          <Text style={styles.restLabel}>DESCANSO</Text>
+          <Text style={styles.restLabel}>{isCircuit && restRemaining > 20 ? 'DESCANSO ENTRE ROUNDS' : 'DESCANSO'}</Text>
           <Text style={styles.restValue}>{restRemaining}s</Text>
           <TouchableOpacity onPress={() => setRestRemaining(0)} style={styles.restButton}>
             <Text style={styles.restButtonText}>Pular descanso</Text>
@@ -160,12 +229,12 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <View style={styles.targetRow}>
             <View style={styles.targetItem}>
               <Text style={styles.targetValue}>{currentSet.setNumber}/{currentExercise.plannedSets}</Text>
-              <Text style={styles.targetLabel}>série</Text>
+              <Text style={styles.targetLabel}>{isCircuit ? 'round' : 'série'}</Text>
             </View>
             <View style={styles.targetItem}>
               <Text style={styles.targetValue}>
                 {currentExercise.durationSeconds
-                  ? `${Math.round(currentExercise.durationSeconds / 60)} min`
+                  ? durationLabel(currentExercise.durationSeconds)
                   : `${currentExercise.repsMin ?? '—'}-${currentExercise.repsMax ?? '—'}`}
               </Text>
               <Text style={styles.targetLabel}>alvo</Text>
@@ -193,7 +262,19 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.durationSeconds ? (
             <View style={styles.timedCard}>
-              <Text style={styles.timedText}>Realize o exercício pelo tempo indicado e confirme ao concluir.</Text>
+              <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
+              <Text style={styles.timedValue}>{workRemaining}s</Text>
+              {workRemaining > 0 ? (
+                <TouchableOpacity
+                  disabled={restRemaining > 0}
+                  onPress={() => setWorkRunning((value) => !value)}
+                  style={[styles.timerButton, restRemaining > 0 && styles.disabled]}
+                >
+                  <Text style={styles.timerButtonText}>{workRunning ? 'Pausar' : workRemaining === currentExercise.durationSeconds ? 'Iniciar' : 'Continuar'}</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.timedText}>Tempo cumprido. Registre o bloco para avançar.</Text>
+              )}
             </View>
           ) : (
             <View style={styles.inputRow}>
@@ -212,19 +293,23 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
             </View>
           )}
 
-          <TouchableOpacity disabled={saving || restRemaining > 0} onPress={saveCurrentSet} style={[styles.primaryButton, (saving || restRemaining > 0) && styles.disabled]}>
-            {saving ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Concluir série</Text>}
+          <TouchableOpacity
+            disabled={saving || restRemaining > 0 || (Boolean(currentExercise.durationSeconds) && workRemaining > 0)}
+            onPress={saveCurrentSet}
+            style={[styles.primaryButton, (saving || restRemaining > 0 || (Boolean(currentExercise.durationSeconds) && workRemaining > 0)) && styles.disabled]}
+          >
+            {saving ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Concluir bloco</Text>}
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.finishCard}>
-          <Text style={styles.finishTitle}>Todas as séries concluídas</Text>
+          <Text style={styles.finishTitle}>Todos os blocos concluídos</Text>
           <Text style={styles.finishText}>Registre o esforço geral da sessão para fechar o treino e alimentar seu histórico de evolução.</Text>
 
           <Text style={styles.inputLabel}>Esforço geral (RPE 1–10)</Text>
           <TextInput value={perceivedEffort} onChangeText={setPerceivedEffort} keyboardType="number-pad" style={styles.fullInput} placeholder="7" />
           <Text style={styles.inputLabel}>Como foi o treino? (opcional)</Text>
-          <TextInput value={feedback} onChangeText={setFeedback} style={[styles.fullInput, styles.feedbackInput]} placeholder="Ex.: boa execução, última série mais difícil..." multiline />
+          <TextInput value={feedback} onChangeText={setFeedback} style={[styles.fullInput, styles.feedbackInput]} placeholder="Ex.: boa execução, último round mais difícil..." multiline />
 
           <TouchableOpacity disabled={finishing} onPress={finishWorkout} style={styles.primaryButton}>
             {finishing ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Finalizar treino</Text>}
@@ -239,7 +324,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <View key={exercise.id} style={styles.exerciseProgressRow}>
             <View style={styles.exerciseProgressText}>
               <Text style={styles.exerciseProgressName}>{exercise.order}. {exercise.name}</Text>
-              <Text style={styles.exerciseProgressMeta}>{done}/{exercise.plannedSets} séries concluídas</Text>
+              <Text style={styles.exerciseProgressMeta}>{done}/{exercise.plannedSets} blocos concluídos</Text>
             </View>
             <Text style={styles.exerciseProgressStatus}>{done === exercise.plannedSets ? '✓' : `${Math.round((done / exercise.plannedSets) * 100)}%`}</Text>
           </View>
@@ -262,6 +347,10 @@ const styles = StyleSheet.create({
   progressBadge: { alignItems: 'flex-end' },
   progressValue: { color: theme.colors.navy, fontSize: 24, fontWeight: '900' },
   progressLabel: { color: theme.colors.textMuted, fontSize: 10, marginTop: 2 },
+  roundCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 14, marginTop: 14 },
+  roundEyebrow: { color: theme.colors.lime, fontWeight: '900', fontSize: 10, letterSpacing: 1.2 },
+  roundValue: { color: theme.colors.navy, fontWeight: '900', fontSize: 18, marginTop: 3 },
+  roundText: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
   progressTrack: { height: 8, borderRadius: 8, backgroundColor: '#E5EBF1', overflow: 'hidden', marginTop: 18, marginBottom: 18 },
   progressBar: { height: 8, backgroundColor: theme.colors.lime, borderRadius: 8 },
   restCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginBottom: 16, alignItems: 'center' },
@@ -281,8 +370,12 @@ const styles = StyleSheet.create({
   videoButton: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4 },
   videoButtonText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginBottom: 10 },
-  timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14 },
+  timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14, alignItems: 'center' },
+  timedLabel: { color: theme.colors.navy, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  timedValue: { color: theme.colors.navy, fontSize: 42, fontWeight: '900', marginVertical: 5 },
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
+  timerButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 28, marginTop: 4 },
+  timerButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
   inputGroup: { flex: 1 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
