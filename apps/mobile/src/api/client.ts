@@ -162,6 +162,34 @@ export type WorkoutHistoryItem = {
   feedback: string | null;
 };
 
+export type StrengthInsight = {
+  exerciseId: string;
+  exerciseName: string;
+  primaryMuscle: string;
+  personalRecords: {
+    maxLoadKg: number;
+    maxSetVolumeKg: number;
+  };
+  progression: {
+    status: 'increase' | 'maintain';
+    currentLoadKg: number | null;
+    suggestedLoadKg: number | null;
+    increasePercent: number;
+    reason: string;
+  };
+  lastPerformedAt: string | null;
+};
+
+export type StrengthInsightsResponse = {
+  exercises: StrengthInsight[];
+  policy: {
+    automaticIncreasePercent: number;
+    requiresTwoConsecutiveSessions: boolean;
+    neverForcesLoadChange: boolean;
+    note: string;
+  };
+};
+
 class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -331,6 +359,10 @@ export const api = {
   async getWorkoutHistory(token: string): Promise<WorkoutHistoryItem[]> {
     const response = await request<{ workouts: WorkoutHistoryItem[] }>('/progress/workouts', {}, token);
     return response.workouts;
+  },
+
+  async getStrengthInsights(token: string): Promise<StrengthInsightsResponse> {
+    return request<StrengthInsightsResponse>('/progress/strength', {}, token);
   },
 
   async listExercises(token: string) {
