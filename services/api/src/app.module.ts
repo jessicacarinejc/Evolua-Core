@@ -19,6 +19,7 @@ import { ProfileService } from './profile/profile.service';
 import { ProgressController } from './progress/progress.controller';
 import { ProgressService } from './progress/progress.service';
 import { TaiChiWorkoutService } from './workouts/tai-chi-workout.service';
+import { WeeklyWorkoutService } from './workouts/weekly-workout.service';
 import { WorkoutEngineService } from './workouts/workout-engine.service';
 import { WorkoutsController } from './workouts/workouts.controller';
 import { WorkoutSafetyService } from './workouts/workout-safety.service';
@@ -47,6 +48,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     WorkoutSafetyService,
     WorkoutEngineService,
     WorkoutSessionService,
+    WeeklyWorkoutService,
     TaiChiWorkoutService,
     CalisthenicsWorkoutService,
     ProgressService,
