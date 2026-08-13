@@ -49,6 +49,14 @@ type HistorySetRow = {
   target_rir: string | null;
 };
 
+type RecentSafetyEventRow = {
+  event_type: 'pain' | 'symptom' | 'substitution';
+  body_area: string | null;
+  severity: number | null;
+  symptom_type: string | null;
+  created_at: string;
+};
+
 function normalize(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
@@ -115,11 +123,46 @@ export class WorkoutEngineService {
       [userId],
     );
 
+    const recentSafetyResult = await this.db.query<RecentSafetyEventRow>(
+      `SELECT
+         wse.event_type,
+         wse.body_area,
+         wse.severity,
+         wse.metadata->>'symptomType' AS symptom_type,
+         wse.created_at
+       FROM workout_session_events wse
+       JOIN workout_sessions ws ON ws.id = wse.workout_session_id
+       WHERE ws.user_id = $1
+         AND wse.created_at >= now() - interval '7 days'
+         AND wse.event_type IN ('pain','symptom')
+       ORDER BY wse.created_at DESC
+       LIMIT 30`,
+      [userId],
+    );
+
+    const recentPainAreas = [...new Set(
+      recentSafetyResult.rows
+        .filter((event) => event.event_type === 'pain' && (event.severity ?? 0) >= 3 && event.body_area)
+        .map((event) => event.body_area as string),
+    )];
+    const now = Date.now();
+    const recentCriticalSymptom = recentSafetyResult.rows.find((event) => {
+      if (event.event_type !== 'symptom' || (event.severity ?? 0) < 5) return false;
+      if (!['dizziness', 'shortness_of_breath'].includes(event.symptom_type ?? '')) return false;
+      return now - new Date(event.created_at).getTime() <= 48 * 60 * 60 * 1000;
+    });
+    const recentModerateSignal = recentSafetyResult.rows.some((event) => (event.severity ?? 0) >= 5);
+
     return {
       profile: profileResult.rows[0],
       checkin,
       equipment: equipmentResult.rows.map((row) => row.label),
       completedSessions: Number(sessionsResult.rows[0]?.total ?? 0),
+      recentSafety: {
+        painAreas: recentPainAreas,
+        moderateSignal: recentModerateSignal,
+        criticalSymptom: recentCriticalSymptom ?? null,
+      },
     };
   }
 
@@ -251,15 +294,27 @@ export class WorkoutEngineService {
   }
 
   async generateToday(userId: string) {
-    const { profile, checkin, equipment, completedSessions } = await this.loadContext(userId);
+    const { profile, checkin, equipment, completedSessions, recentSafety } = await this.loadContext(userId);
+    if (recentSafety.criticalSymptom) {
+      throw new BadRequestException('Um sintoma relevante foi registrado nas últimas 48 horas. Atualize o check-in e procure avaliação adequada antes de gerar um novo treino automático.');
+    }
+
+    const effectiveRecoveryScore = recentSafety.moderateSignal
+      ? Math.min(checkin.recovery_score, 69)
+      : checkin.recovery_score;
+    const combinedPainAreas = [...new Set([...checkin.pain_areas, ...recentSafety.painAreas])];
     const split = this.chooseSplit(profile.training_days_per_week, completedSessions, checkin.status);
     const safety = this.safety.evaluate({
       goal: profile.primary_goal,
       availableMinutes: checkin.available_minutes,
-      recoveryScore: checkin.recovery_score,
-      jointPain: checkin.pain_areas,
+      recoveryScore: effectiveRecoveryScore,
+      jointPain: combinedPainAreas,
       availableEquipment: equipment,
     });
+
+    if (recentSafety.moderateSignal) {
+      safety.notes.push('Ocorrência recente de dor/sintoma durante treino: a intensidade automática foi limitada e o sinal foi incorporado às regras de segurança.');
+    }
 
     const all = await this.catalog();
     const targetMuscles = new Set(splitMuscles[split] ?? splitMuscles['corpo inteiro']);
@@ -307,7 +362,20 @@ export class WorkoutEngineService {
            user_id, status, goal, planned_date, estimated_minutes, generation_source, safety_snapshot
          ) VALUES ($1, 'draft', $2, CURRENT_DATE, $3, 'rules', $4::jsonb)
          RETURNING id`,
-        [userId, profile.primary_goal, checkin.available_minutes, JSON.stringify({ split, recoveryScore: checkin.recovery_score, ...safety })],
+        [
+          userId,
+          profile.primary_goal,
+          checkin.available_minutes,
+          JSON.stringify({
+            split,
+            recoveryScore: effectiveRecoveryScore,
+            recentSessionSignals: {
+              painAreas: recentSafety.painAreas,
+              intensityLimited: recentSafety.moderateSignal,
+            },
+            ...safety,
+          }),
+        ],
       );
       const id = planResult.rows[0].id;
 
