@@ -41,10 +41,15 @@ jobs:
       - name: Validar scripts de homologação local
         run: |
           node --check scripts/apply-local-migrations.mjs
+          node --check scripts/start-local-homologation-api.mjs
           node --check scripts/build-android-homologation.mjs
+          node --check scripts/build-ios-homologation.mjs
           node --check scripts/smoke-local-homologation.mjs
           node --check scripts/e2e-local-homologation.mjs
           node --check scripts/audit-local-media.mjs
 
-      - name: Validar Docker Compose
+      - name: Validar Docker Compose de desenvolvimento
         run: docker compose config >/dev/null
+
+      - name: Validar Docker Compose de homologação
+        run: docker compose --env-file .env.homologation.example -f docker-compose.homologation.yml config >/dev/null
