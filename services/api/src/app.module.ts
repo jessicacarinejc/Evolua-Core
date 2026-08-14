@@ -4,7 +4,6 @@ import { AssistantService } from './assistant/assistant.service';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
-import { CalisthenicsWorkoutService } from './workouts/calisthenics-workout.service';
 import { DailyCheckinController } from './checkins/daily-checkin.controller';
 import { DailyCheckinService } from './checkins/daily-checkin.service';
 import { DatabaseService } from './database/database.service';
@@ -17,16 +16,19 @@ import { NutritionService } from './nutrition/nutrition.service';
 import { OnboardingController } from './onboarding/onboarding.controller';
 import { OnboardingSafetyService } from './onboarding/onboarding-safety.service';
 import { OnboardingService } from './onboarding/onboarding.service';
+import { ProfessionalController } from './professional/professional.controller';
+import { ProfessionalService } from './professional/professional.service';
 import { ProfileController } from './profile/profile.controller';
 import { ProfileService } from './profile/profile.service';
 import { ProgressController } from './progress/progress.controller';
 import { ProgressService } from './progress/progress.service';
+import { CalisthenicsWorkoutService } from './workouts/calisthenics-workout.service';
 import { TaiChiWorkoutService } from './workouts/tai-chi-workout.service';
 import { WeeklyWorkoutService } from './workouts/weekly-workout.service';
 import { WorkoutEngineService } from './workouts/workout-engine.service';
-import { WorkoutsController } from './workouts/workouts.controller';
 import { WorkoutSafetyService } from './workouts/workout-safety.service';
 import { WorkoutSessionService } from './workouts/workout-session.service';
+import { WorkoutsController } from './workouts/workouts.controller';
 
 @Module({
   controllers: [
@@ -40,6 +42,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     NutritionController,
     ProfileController,
     AssistantController,
+    ProfessionalController,
   ],
   providers: [
     DatabaseService,
@@ -60,6 +63,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     MealPlanService,
     ProfileService,
     AssistantService,
+    ProfessionalService,
   ],
 })
 export class AppModule {}

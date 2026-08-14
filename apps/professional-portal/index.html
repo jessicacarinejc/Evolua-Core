@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evolua Core — Portal Profissional</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background:#08182d; color:#fff; }
+    * { box-sizing:border-box; } body { margin:0; background:#08182d; }
+    header { padding:20px 28px; border-bottom:1px solid #284565; display:flex; justify-content:space-between; align-items:center; gap:16px; }
+    main { padding:24px; max-width:1200px; margin:auto; }
+    .grid { display:grid; grid-template-columns:320px 1fr; gap:20px; } .card { background:#10294b; border:1px solid #29486b; border-radius:16px; padding:18px; }
+    input, select, textarea, button { width:100%; border-radius:10px; border:1px solid #416183; padding:11px; margin:6px 0; background:#0b203b; color:#fff; }
+    button { background:#b5e34f; color:#10294b; font-weight:800; cursor:pointer; } button.secondary { background:#23436d; color:#fff; }
+    .muted { color:#b9c7d8; font-size:13px; } .danger { color:#ffb4b4; } .ok { color:#c8f27a; }
+    .client { padding:12px; border:1px solid #315273; border-radius:12px; margin:8px 0; cursor:pointer; } .client:hover { background:#18385d; }
+    .row { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; } .metric { background:#0b203b; padding:12px; border-radius:12px; }
+    table { width:100%; border-collapse:collapse; font-size:13px; } th, td { padding:9px; border-bottom:1px solid #29486b; text-align:left; }
+    .hidden { display:none !important; } h1,h2,h3 { margin-top:0; } @media(max-width:850px){.grid{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header><div><strong>Evolua Core</strong><div class="muted">Portal profissional / administrativo local</div></div><button id="logout" class="secondary" style="width:auto">Sair</button></header>
+<main>
+  <section id="loginCard" class="card" style="max-width:480px;margin:40px auto">
+    <h2>Entrar</h2><p class="muted">Use uma conta local com papel profissional ou administrativo.</p>
+    <label>API local</label><input id="apiUrl" value="http://localhost:3333/v1" />
+    <label>E-mail</label><input id="email" type="email" />
+    <label>Senha</label><input id="password" type="password" />
+    <button id="login">Entrar</button><p id="loginError" class="danger"></p>
+  </section>
+
+  <section id="app" class="hidden">
+    <div class="grid">
+      <aside class="card"><h3>Usuários acompanhados</h3><div id="identity" class="muted"></div><div id="clients"></div></aside>
+      <div>
+        <section id="overview" class="card"><h2>Selecione um usuário</h2><p class="muted">O acesso é limitado aos vínculos profissionais ativos. Toda consulta é registrada em auditoria.</p></section>
+        <section id="admin" class="card hidden" style="margin-top:20px"><h3>Administração local</h3>
+          <div class="row"><div><label>E-mail da conta</label><input id="roleEmail" /></div><div><label>Papel</label><select id="role"><option>user</option><option>professional</option><option>admin</option></select></div><div style="align-self:end"><button id="setRole">Alterar papel</button></div></div>
+          <p id="adminMessage" class="muted"></p><div id="usersTable"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+const state={token:localStorage.getItem('evolua.portal.token')||'',api:localStorage.getItem('evolua.portal.api')||'http://localhost:3333/v1',me:null,selected:null};
+const $=id=>document.getElementById(id); $('apiUrl').value=state.api;
+async function req(path,options={}){const r=await fetch(state.api+path,{...options,headers:{'Content-Type':'application/json',...(state.token?{Authorization:'Bearer '+state.token}:{}),...(options.headers||{})}});const body=await r.json().catch(()=>null);if(!r.ok)throw new Error(Array.isArray(body?.message)?body.message.join('\n'):body?.message||'Falha na API');return body}
+async function boot(){if(!state.token)return;try{state.me=await req('/professional/me');if(!['professional','admin'].includes(state.me.role))throw new Error('Conta sem permissão para o portal.');$('loginCard').classList.add('hidden');$('app').classList.remove('hidden');$('identity').textContent=state.me.email+' · '+state.me.role;await loadClients();if(state.me.role==='admin'){ $('admin').classList.remove('hidden');await loadUsers(); }}catch(e){state.token='';localStorage.removeItem('evolua.portal.token');$('loginError').textContent=e.message}}
+async function loadClients(){const list=await req('/professional/clients');$('clients').innerHTML=list.length?list.map(c=>`<div class="client" data-id="${c.id}"><strong>${escapeHtml(c.displayName||c.email)}</strong><div class="muted">${escapeHtml(c.primaryGoal||'sem objetivo')} · check-in: ${escapeHtml(c.latestCheckinStatus||'sem registro')}</div></div>`).join(''):'<p class="muted">Nenhum vínculo ativo.</p>';document.querySelectorAll('.client').forEach(el=>el.onclick=()=>loadClient(el.dataset.id));}
+async function loadClient(id){const x=await req('/professional/clients/'+id);state.selected=id;const p=x.profile;const metric=x.bodyMetrics[0];$('overview').innerHTML=`<h2>${escapeHtml(p.displayName||p.email)}</h2><p class="muted">${escapeHtml(p.email)}</p><div class="row"><div class="metric"><strong>Objetivo</strong><div>${escapeHtml(p.primaryGoal||'-')}</div></div><div class="metric"><strong>Peso recente</strong><div>${metric?.weight_kg||'-'} kg</div></div><div class="metric"><strong>Hoje</strong><div>${x.nutritionToday.meals_today||0} refeições · ${x.nutritionToday.water_ml||0} ml</div></div></div><h3 style="margin-top:20px">Eventos de segurança recentes</h3>${x.recentSafetyEvents.length?'<table><tr><th>Tipo</th><th>Gravidade</th><th>Área</th><th>Data</th></tr>'+x.recentSafetyEvents.map(e=>`<tr><td>${escapeHtml(e.event_type)}</td><td>${e.severity??'-'}</td><td>${escapeHtml(e.body_area||'-')}</td><td>${new Date(e.created_at).toLocaleString()}</td></tr>`).join('')+'</table>':'<p class="muted">Sem eventos recentes.</p>'}<h3 style="margin-top:20px">Registrar revisão</h3><select id="reviewType"><option value="geral">Geral</option><option value="treino">Treino</option><option value="nutricao">Nutrição</option><option value="seguranca">Segurança</option></select><textarea id="reviewNote" rows="4" placeholder="Observação profissional"></textarea><button id="saveReview">Registrar revisão</button><p class="muted">Este registro não altera medicação, insulina ou diagnóstico.</p>`;$('saveReview').onclick=async()=>{try{await req('/professional/reviews',{method:'POST',body:JSON.stringify({clientUserId:id,reviewType:$('reviewType').value,note:$('reviewNote').value})});$('reviewNote').value='';alert('Revisão registrada.')}catch(e){alert(e.message)}}}
+async function loadUsers(){const users=await req('/professional/admin/users');$('usersTable').innerHTML='<table><tr><th>Nome</th><th>E-mail</th><th>Papel</th></tr>'+users.map(u=>`<tr><td>${escapeHtml(u.displayName||'-')}</td><td>${escapeHtml(u.email)}</td><td>${escapeHtml(u.role)}</td></tr>`).join('')+'</table>'}
+$('login').onclick=async()=>{try{state.api=$('apiUrl').value.replace(/\/$/,'');const r=await fetch(state.api+'/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('email').value,password:$('password').value})});const b=await r.json();if(!r.ok)throw new Error(b?.message||'Falha no login');state.token=b.token;localStorage.setItem('evolua.portal.token',state.token);localStorage.setItem('evolua.portal.api',state.api);await boot()}catch(e){$('loginError').textContent=e.message}};
+$('setRole').onclick=async()=>{try{const r=await req('/professional/admin/roles',{method:'POST',body:JSON.stringify({email:$('roleEmail').value,role:$('role').value})});$('adminMessage').textContent='Papel atualizado: '+r.email+' → '+r.role;await loadUsers();await loadClients()}catch(e){$('adminMessage').textContent=e.message}};
+$('logout').onclick=()=>{localStorage.removeItem('evolua.portal.token');location.reload()};function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}boot();
+</script>
+</body>
+</html>
