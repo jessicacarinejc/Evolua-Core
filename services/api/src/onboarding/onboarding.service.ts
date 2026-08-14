@@ -63,8 +63,8 @@ export class OnboardingService {
 
       await client.query(
         `INSERT INTO audit_logs (actor_user_id, action, resource_type, resource_id, metadata)
-         VALUES ($1,'onboarding.completed','profile',$1,$2::jsonb)`,
-        [userId, JSON.stringify({ safety })],
+         VALUES ($1::uuid,'onboarding.completed','profile',$2::text,$3::jsonb)`,
+        [userId, userId, JSON.stringify({ safety })],
       );
     });
 
