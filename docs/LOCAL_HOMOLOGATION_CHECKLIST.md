@@ -21,7 +21,7 @@ O Android exige que todo APK instalado em aparelho seja assinado. Para homologa�
 - [ ] autenticação, cadastro, sessão persistente e logout
 - [ ] onboarding completo e perfil editável
 - [ ] check-in diário com regras determinísticas de segurança
-- [ ] planejamento semanal concluído e integrado
+- [x] planejamento semanal concluído e integrado
 - [ ] geração adaptativa de treino
 - [ ] execução guiada com séries, repetições, carga, RIR/RPE e descanso
 - [ ] retomada de sessão interrompida
