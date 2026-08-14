@@ -1,6 +1,5 @@
 import { OnboardingData } from '../onboarding/types';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
+import { getApiBaseUrl } from './runtime-config';
 
 export type AuthUser = {
   id: string;
@@ -271,7 +270,8 @@ class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const apiUrl = await getApiBaseUrl();
+  const response = await fetch(`${apiUrl}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
