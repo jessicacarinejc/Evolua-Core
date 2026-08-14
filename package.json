@@ -17,8 +17,7 @@
     "homologacao:infra": "docker compose up -d",
     "homologacao:migrate": "node scripts/apply-local-migrations.mjs",
     "homologacao:api": "npm --workspace @evolua/api run start:dev",
-    "homologacao:android": "node scripts/build-android-homologation.mjs",
-    "homologacao:smoke": "node scripts/smoke-local-homologation.mjs"
+    "homologacao:android": "node scripts/build-android-homologation.mjs"
   },
   "engines": {
     "node": ">=20.19"
