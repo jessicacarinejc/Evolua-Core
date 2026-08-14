@@ -15,7 +15,13 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
-      <VideoView player={player} style={styles.video} nativeControls contentFit="contain" allowsFullscreen />
+      <VideoView
+        player={player}
+        style={styles.video}
+        nativeControls
+        contentFit="contain"
+        fullscreenOptions={{ enable: true }}
+      />
       {license ? <Text style={styles.meta}>Licença: {license}</Text> : null}
       {attribution ? <Text style={styles.meta}>Crédito: {attribution}</Text> : null}
       {!license && !attribution ? <Text style={styles.warning}>Revisar licença da mídia antes da homologação final.</Text> : null}
