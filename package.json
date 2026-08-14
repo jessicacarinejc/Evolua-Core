@@ -21,6 +21,7 @@
     "homologacao:portal": "node scripts/serve-professional-portal.mjs",
     "homologacao:admin": "node scripts/promote-local-admin.mjs",
     "homologacao:smoke": "node scripts/smoke-local-homologation.mjs",
+    "homologacao:e2e": "node scripts/e2e-local-homologation.mjs",
     "homologacao:media": "node scripts/audit-local-media.mjs"
   },
   "engines": {
