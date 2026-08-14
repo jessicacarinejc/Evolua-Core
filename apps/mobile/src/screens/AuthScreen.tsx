@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { getApiBaseUrl, setApiBaseUrl } from '../api/runtime-config';
 import { theme } from '../theme';
 
 type Props = {
@@ -21,6 +22,14 @@ export function AuthScreen({ onSubmit }: Props) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [configOpen, setConfigOpen] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configMessage, setConfigMessage] = useState('');
+
+  useEffect(() => {
+    void getApiBaseUrl().then(setApiUrl).catch(() => setApiUrl(''));
+  }, []);
 
   const canContinue = email.trim().includes('@') && password.length >= 8 && !loading;
 
@@ -34,6 +43,20 @@ export function AuthScreen({ onSubmit }: Props) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível autenticar.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveApiUrl = async () => {
+    setConfigSaving(true);
+    setConfigMessage('');
+    try {
+      const saved = await setApiBaseUrl(apiUrl);
+      setApiUrl(saved);
+      setConfigMessage('Ambiente de homologação salvo neste dispositivo.');
+    } catch (cause) {
+      setConfigMessage(cause instanceof Error ? cause.message : 'Não foi possível salvar o ambiente.');
+    } finally {
+      setConfigSaving(false);
     }
   };
 
@@ -66,6 +89,31 @@ export function AuthScreen({ onSubmit }: Props) {
         </TouchableOpacity>
 
         <Text style={styles.disclaimer}>A sessão é armazenada de forma segura no dispositivo. Nunca compartilhe sua senha.</Text>
+
+        <TouchableOpacity onPress={() => { setConfigMessage(''); setConfigOpen((current) => !current); }} style={styles.environmentToggle}>
+          <Text style={styles.environmentToggleText}>{configOpen ? 'Ocultar ambiente de homologação' : 'Configurar ambiente de homologação'}</Text>
+        </TouchableOpacity>
+
+        {configOpen ? (
+          <View style={styles.environmentCard}>
+            <Text style={styles.environmentTitle}>Servidor da homologação</Text>
+            <Text style={styles.environmentHelp}>Informe a URL completa da API. Esta configuração fica salva somente neste aparelho e pode ser alterada sem gerar um novo APK.</Text>
+            <TextInput
+              value={apiUrl}
+              onChangeText={setApiUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              placeholder="https://servidor.exemplo/v1"
+              placeholderTextColor="#9AA4B2"
+              style={styles.input}
+            />
+            <TouchableOpacity disabled={configSaving} onPress={saveApiUrl} style={styles.environmentButton}>
+              <Text style={styles.environmentButtonText}>{configSaving ? 'Salvando...' : 'Salvar ambiente'}</Text>
+            </TouchableOpacity>
+            {configMessage ? <Text style={styles.environmentMessage}>{configMessage}</Text> : null}
+          </View>
+        ) : null}
       </View>
     </KeyboardAvoidingView>
   );
@@ -89,4 +137,12 @@ const styles = StyleSheet.create({
   switchButton: { alignItems: 'center', paddingVertical: 14 },
   switchText: { color: theme.colors.navy, fontWeight: '800', fontSize: 13 },
   disclaimer: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, textAlign: 'center' },
+  environmentToggle: { alignItems: 'center', marginTop: 12, paddingVertical: 8 },
+  environmentToggleText: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '800' },
+  environmentCard: { borderTopWidth: 1, borderTopColor: theme.colors.border, marginTop: 8, paddingTop: 14 },
+  environmentTitle: { color: theme.colors.navy, fontSize: 13, fontWeight: '900', marginBottom: 4 },
+  environmentHelp: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginBottom: 8 },
+  environmentButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 12, alignItems: 'center', paddingVertical: 11, marginTop: 8 },
+  environmentButtonText: { color: theme.colors.navy, fontSize: 12, fontWeight: '900' },
+  environmentMessage: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 8, textAlign: 'center' },
 });
