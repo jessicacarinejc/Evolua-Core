@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Typecheck e build
+    name: Typecheck, build e homologação local
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -37,3 +37,11 @@ jobs:
 
       - name: Build da API
         run: npm run api:build
+
+      - name: Validar scripts de homologação local
+        run: |
+          node --check scripts/apply-local-migrations.mjs
+          node --check scripts/build-android-homologation.mjs
+
+      - name: Validar Docker Compose
+        run: docker compose config >/dev/null
