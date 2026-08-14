@@ -61,6 +61,15 @@ jobs:
       - name: Preparar ambiente temporário de build
         run: printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" > .env.homologation
 
+      - name: Normalizar PNG do branding para prebuild
+        run: |
+          if ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y imagemagick
+          fi
+          convert apps/mobile/assets/brand/icon.png -strip PNG32:/tmp/evolua-core-icon.png
+          cp /tmp/evolua-core-icon.png apps/mobile/assets/brand/icon.png
+
       - name: Gerar APK
         run: npm run homologacao:android
 
