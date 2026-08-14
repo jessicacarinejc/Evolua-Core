@@ -121,7 +121,7 @@ async function run() {
   const sessionId = activeStart.payload.id;
 
   const active = await request('/workouts/sessions/active', { headers: auth });
-  assert(active.response.ok && active.payload?.id === sessionId, failureMessage('Retomada de sessão ativa', active));
+  assert(active.response.ok && active.payload?.session?.id === sessionId, failureMessage('Retomada de sessão ativa', active));
   console.log('[e2e] início e retomada de sessão: ok');
 
   const mealPlan = await request('/nutrition/plan', { headers: auth });
