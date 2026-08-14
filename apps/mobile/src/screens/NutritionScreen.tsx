@@ -10,6 +10,8 @@ import {
   View,
 } from 'react-native';
 import { api, MealType, NutritionDay } from '../api/client';
+import { loadPersonalizedMealPlan, PersonalizedMealPlan } from '../api/meal-plan';
+import { MealPlanCard } from '../components/MealPlanCard';
 import { OnboardingData } from '../onboarding/types';
 import { theme } from '../theme';
 
@@ -73,6 +75,7 @@ function TipCard({ eyebrow, title, body, foods, strategy }: {
 
 export function NutritionScreen({ profile, token }: Props) {
   const [day, setDay] = useState<NutritionDay | null>(null);
+  const [mealPlan, setMealPlan] = useState<PersonalizedMealPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingMeal, setSavingMeal] = useState(false);
   const [savingTargets, setSavingTargets] = useState(false);
@@ -98,6 +101,11 @@ export function NutritionScreen({ profile, token }: Props) {
         setTargetCalories(result.targets.caloriesKcal == null ? '' : String(result.targets.caloriesKcal));
         setTargetProtein(result.targets.proteinG == null ? '' : String(result.targets.proteinG));
         setTargetWater(result.targets.waterMl == null ? '' : String(result.targets.waterMl));
+      }
+      try {
+        setMealPlan(await loadPersonalizedMealPlan(token));
+      } catch {
+        setMealPlan(null);
       }
     } catch (cause) {
       Alert.alert('Nutrição indisponível', cause instanceof Error ? cause.message : 'Tente novamente.');
@@ -204,6 +212,8 @@ export function NutritionScreen({ profile, token }: Props) {
           <Text style={styles.macroText}>Fibras {Math.round(day?.totals.fiberG ?? 0)} g</Text>
         </View>
       </View>
+
+      {mealPlan ? <MealPlanCard plan={mealPlan} /> : null}
 
       <View style={styles.quickCard}>
         <Text style={styles.sectionEyebrow}>HIDRATAÇÃO</Text>
