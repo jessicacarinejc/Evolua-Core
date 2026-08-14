@@ -1,16 +1,25 @@
 import { Body, Controller, Get, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { AuthenticatedRequest, AuthGuard } from '../auth/auth.guard';
+import { MealPlanService } from './meal-plan.service';
 import { AddHydrationDto, AddMealEntryDto, SaveNutritionTargetDto } from './nutrition.dto';
 import { NutritionService } from './nutrition.service';
 
 @Controller('nutrition')
 @UseGuards(AuthGuard)
 export class NutritionController {
-  constructor(private readonly nutrition: NutritionService) {}
+  constructor(
+    private readonly nutrition: NutritionService,
+    private readonly mealPlan: MealPlanService,
+  ) {}
 
   @Get('today')
   today(@Req() request: AuthenticatedRequest) {
     return this.nutrition.today(request.auth.userId);
+  }
+
+  @Get('plan')
+  plan(@Req() request: AuthenticatedRequest) {
+    return this.mealPlan.getPlan(request.auth.userId);
   }
 
   @Post('meals')
