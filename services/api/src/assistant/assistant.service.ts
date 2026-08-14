@@ -2,8 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 
 const MEDICATION_TERMS = [
-  'insulina', 'insulin', 'medicação', 'medicacao', 'remédio', 'remedio', 'dose', 'dosagem',
+  'insulina', 'insulin', 'medicação', 'medicacao', 'remédio', 'remedio',
   'metformina', 'antidepressivo', 'ansiolítico', 'ansiolitico', 'antibiótico', 'antibiotico',
+];
+const MEDICATION_CHANGE_TERMS = [
+  'aumente a dose', 'reduza a dose', 'diminua a dose', 'tome ', 'pare de tomar', 'suspenda',
+  'interrompa o medicamento', 'aplique insulina', 'unidades de insulina', 'ajuste a insulina',
 ];
 const RED_FLAG_TERMS = [
   'dor no peito', 'desmaio', 'desmaiei', 'falta de ar intensa', 'falta de ar forte',
@@ -11,10 +15,21 @@ const RED_FLAG_TERMS = [
 ];
 const DIAGNOSIS_TERMS = ['diagnóstico', 'diagnostico', 'tenho doença', 'tenho doenca', 'qual doença', 'qual doenca'];
 
+function normalize(text: string) {
+  return text.toLocaleLowerCase('pt-BR');
+}
+
 function includesAny(text: string, terms: string[]) {
-  const normalized = text.toLocaleLowerCase('pt-BR');
+  const normalized = normalize(text);
   return terms.some((term) => normalized.includes(term));
 }
+
+type AssistantContext = {
+  goal: string | null;
+  trainingLevel: string | null;
+  painAreas: string[];
+  checkin: { status: string; recovery_score: number } | null;
+};
 
 @Injectable()
 export class AssistantService {
@@ -24,63 +39,91 @@ export class AssistantService {
     const clean = message.trim();
     const decision = this.preflight(clean);
 
-    await this.db.query(
-      `INSERT INTO audit_logs (actor_user_id, action, resource_type, metadata)
-       VALUES ($1, 'assistant.ask', 'assistant_message', $2::jsonb)`,
-      [userId, JSON.stringify({ decision: decision.kind, messageLength: clean.length })],
-    );
+    await this.audit(userId, decision.kind, clean.length);
 
     if (decision.kind !== 'allowed') {
-      return {
-        answer: decision.answer,
-        safety: {
-          blocked: true,
-          reason: decision.kind,
-          requiresProfessionalReview: decision.kind === 'red_flag' || decision.kind === 'diagnosis',
-          medicationChangesAllowed: false,
-        },
-        source: 'deterministic_safety_layer',
-      };
+      return this.blocked(decision.kind, decision.answer);
     }
 
     const context = await this.loadContext(userId);
-    const answer = this.buildGroundedAnswer(clean, context);
+    const localAiAnswer = await this.askLocalAi(clean, context);
+    const candidate = localAiAnswer ?? this.buildGroundedFallback(clean, context);
+    const postflight = this.postflight(candidate);
+
+    if (!postflight.allowed) {
+      await this.audit(userId, 'model_output_blocked', clean.length);
+      return this.blocked(
+        'model_output_blocked',
+        'A resposta automática foi bloqueada pelas regras de segurança. Não posso orientar alteração de medicação, insulina ou tratamento. Posso ajudar a organizar perguntas para um profissional de saúde.',
+      );
+    }
 
     return {
-      answer,
+      answer: candidate,
       safety: {
         blocked: false,
         reason: null,
         requiresProfessionalReview: false,
         medicationChangesAllowed: false,
       },
-      source: 'grounded_local_assistant',
+      source: localAiAnswer ? 'local_ai_after_deterministic_safety' : 'grounded_local_fallback',
+    };
+  }
+
+  private async audit(userId: string, decision: string, messageLength: number) {
+    await this.db.query(
+      `INSERT INTO audit_logs (actor_user_id, action, resource_type, metadata)
+       VALUES ($1, 'assistant.ask', 'assistant_message', $2::jsonb)`,
+      [userId, JSON.stringify({ decision, messageLength })],
+    );
+  }
+
+  private blocked(reason: string, answer: string) {
+    return {
+      answer,
+      safety: {
+        blocked: true,
+        reason,
+        requiresProfessionalReview: ['red_flag', 'diagnosis', 'model_output_blocked'].includes(reason),
+        medicationChangesAllowed: false,
+      },
+      source: 'deterministic_safety_layer',
     };
   }
 
   private preflight(message: string) {
-    if (includesAny(message, MEDICATION_TERMS)) {
-      return {
-        kind: 'medication' as const,
-        answer: 'Não posso orientar ajuste, início, suspensão ou dose de medicamentos ou insulina. Posso ajudar a organizar perguntas para levar ao seu médico ou explicar informações gerais sem alterar tratamento.',
-      };
-    }
-    if (includesAny(message, RED_FLAG_TERMS)) {
+    const normalized = normalize(message);
+    if (includesAny(normalized, RED_FLAG_TERMS)) {
       return {
         kind: 'red_flag' as const,
         answer: 'Os sinais descritos podem exigir avaliação profissional imediata. O assistente não deve recomendar treino, dieta ou automanejo diante desses sintomas. Procure atendimento adequado e não use o app para substituir essa avaliação.',
       };
     }
-    if (includesAny(message, DIAGNOSIS_TERMS)) {
+    if (includesAny(normalized, DIAGNOSIS_TERMS)) {
       return {
         kind: 'diagnosis' as const,
         answer: 'Não posso diagnosticar doenças. Posso explicar informações gerais, organizar seus registros e ajudar a preparar perguntas para um profissional de saúde.',
       };
     }
+    if (includesAny(normalized, MEDICATION_TERMS) && this.requestsTreatmentChange(normalized)) {
+      return {
+        kind: 'medication' as const,
+        answer: 'Não posso orientar ajuste, início, suspensão ou dose de medicamentos ou insulina. Posso ajudar a organizar perguntas para levar ao seu médico ou explicar informações gerais sem alterar tratamento.',
+      };
+    }
     return { kind: 'allowed' as const, answer: '' };
   }
 
-  private async loadContext(userId: string) {
+  private requestsTreatmentChange(message: string) {
+    const actionTerms = ['aument', 'reduz', 'diminu', 'dose', 'dosagem', 'parar', 'suspender', 'trocar', 'substituir', 'tomar', 'aplicar', 'unidades'];
+    return actionTerms.some((term) => message.includes(term));
+  }
+
+  private postflight(answer: string) {
+    return { allowed: !includesAny(answer, MEDICATION_CHANGE_TERMS) };
+  }
+
+  private async loadContext(userId: string): Promise<AssistantContext> {
     const profile = await this.db.query<{
       primary_goal: string | null;
       training_level: string | null;
@@ -112,13 +155,53 @@ export class AssistantService {
     };
   }
 
-  private buildGroundedAnswer(message: string, context: {
-    goal: string | null;
-    trainingLevel: string | null;
-    painAreas: string[];
-    checkin: { status: string; recovery_score: number } | null;
-  }) {
-    const text = message.toLocaleLowerCase('pt-BR');
+  private async askLocalAi(message: string, context: AssistantContext): Promise<string | null> {
+    const endpoint = process.env.LOCAL_AI_URL?.trim();
+    const model = process.env.LOCAL_AI_MODEL?.trim();
+    if (!endpoint || !model) return null;
+
+    const system = [
+      'Você é o Evolua Assist, um assistente de bem-estar e organização do Evolua Core.',
+      'Responda em português do Brasil, com linguagem clara, curta e conservadora.',
+      'Nunca diagnostique doenças. Nunca recomende iniciar, suspender, trocar ou ajustar dose de medicamento ou insulina.',
+      'Nunca substitua médico, nutricionista ou profissional de Educação Física.',
+      'Use apenas o contexto fornecido; não invente exames, condições, metas ou histórico.',
+      'Diante de dor nova, sintomas relevantes ou dúvida clínica, recomende registro no app e avaliação profissional apropriada.',
+    ].join(' ');
+
+    const userContext = {
+      objetivo: context.goal,
+      nivelTreino: context.trainingLevel,
+      areasDorRegistradas: context.painAreas,
+      checkinMaisRecente: context.checkin,
+    };
+
+    try {
+      const response = await fetch(`${endpoint.replace(/\/$/, '')}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          stream: false,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: `Contexto do usuário: ${JSON.stringify(userContext)}\n\nPergunta: ${message}` },
+          ],
+          options: { temperature: 0.2 },
+        }),
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!response.ok) return null;
+      const payload = await response.json() as { message?: { content?: string } };
+      const answer = payload.message?.content?.trim();
+      return answer || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private buildGroundedFallback(message: string, context: AssistantContext) {
+    const text = normalize(message);
     const recovery = context.checkin
       ? `Seu check-in mais recente está como ${context.checkin.status}, com recuperação ${context.checkin.recovery_score}%. `
       : 'Você ainda não tem um check-in recente disponível. ';
