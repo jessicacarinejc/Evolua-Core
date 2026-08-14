@@ -3,7 +3,6 @@ import { DatabaseService } from '../database/database.service';
 import { AssignProfessionalDto, CreateProfessionalReviewDto, SetUserRoleDto } from './professional.dto';
 
 type Role = 'user' | 'professional' | 'admin';
-
 type Actor = { id: string; email: string; role: Role };
 
 @Injectable()
@@ -90,15 +89,16 @@ export class ProfessionalService {
       ),
       this.db.query<any>(
         `SELECT
-           COALESCE((SELECT sum(h.amount_ml)::int FROM hydration_logs h WHERE h.user_id = $1 AND h.logged_at::date = CURRENT_DATE), 0) AS water_ml,
+           COALESCE((SELECT sum(h.amount_ml)::int FROM hydration_logs h WHERE h.user_id = $1 AND h.consumed_at::date = CURRENT_DATE), 0) AS water_ml,
            (SELECT count(*)::int FROM meal_logs ml WHERE ml.user_id = $1 AND ml.consumed_at::date = CURRENT_DATE) AS meals_today`,
         [clientUserId],
       ),
       this.db.query<any>(
-        `SELECT event_type, severity, body_region, created_at
-         FROM workout_session_events
-         WHERE user_id = $1
-         ORDER BY created_at DESC LIMIT 12`,
+        `SELECT e.event_type, e.severity, e.body_area, e.created_at
+         FROM workout_session_events e
+         JOIN workout_sessions ws ON ws.id = e.workout_session_id
+         WHERE ws.user_id = $1
+         ORDER BY e.created_at DESC LIMIT 12`,
         [clientUserId],
       ),
       this.db.query<any>(
