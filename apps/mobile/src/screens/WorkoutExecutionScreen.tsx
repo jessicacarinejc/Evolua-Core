@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } from '../api/client';
+import { ExerciseVideoPlayer } from '../components/ExerciseVideoPlayer';
 import { theme } from '../theme';
 
 type Props = {
@@ -275,14 +275,6 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     }
   };
 
-  const openVideo = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
-    }
-  };
-
   const firstSetUsesHistory = Boolean(
     currentExercise &&
     currentSet &&
@@ -354,16 +346,12 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           {currentExercise.instructions ? <Text style={styles.instructions}>{currentExercise.instructions}</Text> : null}
 
           {currentExercise.videoUrl ? (
-            <>
-              <TouchableOpacity onPress={() => void openVideo(currentExercise.videoUrl!)} style={styles.videoButton}>
-                <Text style={styles.videoButtonText}>Abrir vídeo de referência</Text>
-              </TouchableOpacity>
-              {currentExercise.videoAttribution ? (
-                <Text style={styles.videoCredit}>
-                  {currentExercise.videoAttribution}{currentExercise.videoLicense ? ` · ${currentExercise.videoLicense}` : ''}
-                </Text>
-              ) : null}
-            </>
+            <ExerciseVideoPlayer
+              title={currentExercise.name}
+              videoUrl={currentExercise.videoUrl}
+              license={currentExercise.videoLicense}
+              attribution={currentExercise.videoAttribution}
+            />
           ) : null}
 
           <View style={styles.safetyActions}>
@@ -557,9 +545,6 @@ const styles = StyleSheet.create({
   targetValue: { color: theme.colors.text, fontWeight: '900', fontSize: 14 },
   targetLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   instructions: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginBottom: 12 },
-  videoButton: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 4 },
-  videoButtonText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
-  videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginBottom: 10 },
   safetyActions: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 12 },
   safetyActionButton: { flex: 1, borderWidth: 1, borderColor: '#E4B36A', backgroundColor: '#FFF7EC', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 9, alignItems: 'center' },
   safetyActionText: { color: theme.colors.warning, fontSize: 10, fontWeight: '900' },
