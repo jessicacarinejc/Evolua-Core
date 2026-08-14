@@ -9,6 +9,7 @@ import { DatabaseService } from './database/database.service';
 import { ExercisesController } from './exercises/exercises.controller';
 import { ExercisesService } from './exercises/exercises.service';
 import { HealthController } from './health.controller';
+import { MealPlanService } from './nutrition/meal-plan.service';
 import { NutritionController } from './nutrition/nutrition.controller';
 import { NutritionService } from './nutrition/nutrition.service';
 import { OnboardingController } from './onboarding/onboarding.controller';
@@ -53,6 +54,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     CalisthenicsWorkoutService,
     ProgressService,
     NutritionService,
+    MealPlanService,
     ProfileService,
   ],
 })
