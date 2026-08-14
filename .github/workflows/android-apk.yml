@@ -61,14 +61,24 @@ jobs:
       - name: Preparar ambiente temporário de build
         run: printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" > .env.homologation
 
-      - name: Normalizar PNG do branding para prebuild
+      - name: Reparar PNG do branding para prebuild
         run: |
-          if ! command -v convert >/dev/null 2>&1; then
-            sudo apt-get update -qq
-            sudo apt-get install -y imagemagick
-          fi
-          convert apps/mobile/assets/brand/icon.png -strip PNG32:/tmp/evolua-core-icon.png
-          cp /tmp/evolua-core-icon.png apps/mobile/assets/brand/icon.png
+          python -m pip install --disable-pip-version-check --quiet pillow
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageFile
+
+          ImageFile.LOAD_TRUNCATED_IMAGES = True
+          source = Path('apps/mobile/assets/brand/icon.png')
+          target = Path('/tmp/evolua-core-icon.png')
+
+          with Image.open(source) as image:
+              image.load()
+              image.convert('RGBA').save(target, format='PNG', optimize=False)
+
+          source.write_bytes(target.read_bytes())
+          print(f'PNG reparado: {source} ({source.stat().st_size} bytes)')
+          PY
 
       - name: Gerar APK
         run: npm run homologacao:android
