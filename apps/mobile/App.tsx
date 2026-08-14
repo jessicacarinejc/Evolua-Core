@@ -107,25 +107,47 @@ export default function App() {
   const [profile, setProfile] = useState<OnboardingData | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<Recovery>(null);
+  const [bootError, setBootError] = useState<string | null>(null);
+  const [bootRetrying, setBootRetrying] = useState(false);
+
+  const restoreSession = async () => {
+    setBootRetrying(true);
+    setBootError(null);
+    const storedToken = await sessionStore.get();
+    if (!storedToken) {
+      setToken(null);
+      setStage('auth');
+      setBootRetrying(false);
+      return;
+    }
+
+    try {
+      const user = await api.me(storedToken);
+      setToken(storedToken);
+      setProfile(user.profile);
+      setStage(user.onboardingCompleted ? 'app' : 'onboarding');
+    } catch {
+      // Falha de rede/API não deve invalidar silenciosamente uma sessão local válida.
+      setToken(storedToken);
+      setBootError('Não foi possível validar sua sessão agora. Verifique se o celular e a máquina da API estão na mesma rede e tente novamente.');
+      setStage('boot');
+    } finally {
+      setBootRetrying(false);
+    }
+  };
 
   useEffect(() => {
-    void (async () => {
-      const storedToken = await sessionStore.get();
-      if (!storedToken) {
-        setStage('auth');
-        return;
-      }
-      try {
-        const user = await api.me(storedToken);
-        setToken(storedToken);
-        setProfile(user.profile);
-        setStage(user.onboardingCompleted ? 'app' : 'onboarding');
-      } catch {
-        await sessionStore.clear();
-        setStage('auth');
-      }
-    })();
+    void restoreSession();
   }, []);
+
+  const clearSessionAndReturnToLogin = async () => {
+    await sessionStore.clear();
+    setToken(null);
+    setProfile(null);
+    setRecovery(null);
+    setBootError(null);
+    setStage('auth');
+  };
 
   const handleAuth = async (mode: 'login' | 'register', email: string, password: string) => {
     const response = await api.authenticate(mode, email, password);
@@ -174,7 +196,24 @@ export default function App() {
   }, [activeTab, profile, recovery, token]);
 
   if (stage === 'boot') {
-    return <View style={styles.boot}><ActivityIndicator size="large" color={theme.colors.lime} /><Text style={styles.bootText}>EVOLUA CORE</Text></View>;
+    return (
+      <View style={styles.boot}>
+        <ActivityIndicator size="large" color={theme.colors.lime} animating={!bootError || bootRetrying} />
+        <Text style={styles.bootText}>EVOLUA CORE</Text>
+        {bootError ? (
+          <View style={styles.bootErrorCard}>
+            <Text style={styles.bootErrorTitle}>API local indisponível</Text>
+            <Text style={styles.bootErrorText}>{bootError}</Text>
+            <TouchableOpacity style={styles.bootRetryButton} disabled={bootRetrying} onPress={() => void restoreSession()}>
+              <Text style={styles.bootRetryButtonText}>{bootRetrying ? 'Tentando...' : 'Tentar novamente'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bootLogoutButton} disabled={bootRetrying} onPress={() => void clearSessionAndReturnToLogin()}>
+              <Text style={styles.bootLogoutButtonText}>Sair desta conta</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </View>
+    );
   }
   if (stage === 'auth') return <AuthScreen onSubmit={handleAuth} />;
   if (stage === 'onboarding') return <OnboardingScreen onFinish={handleOnboarding} />;
@@ -202,8 +241,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  boot: { flex: 1, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  boot: { flex: 1, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   bootText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', letterSpacing: 1.6 },
+  bootErrorCard: { width: '100%', maxWidth: 420, backgroundColor: theme.colors.white, borderRadius: theme.radius.lg, padding: 18, marginTop: 8 },
+  bootErrorTitle: { color: theme.colors.navy, fontSize: 17, fontWeight: '900' },
+  bootErrorText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
+  bootRetryButton: { backgroundColor: theme.colors.lime, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
+  bootRetryButtonText: { color: theme.colors.navyDark, fontWeight: '900' },
+  bootLogoutButton: { paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  bootLogoutButtonText: { color: theme.colors.textMuted, fontWeight: '800', fontSize: 12 },
   safeArea: { flex: 1, backgroundColor: theme.colors.background },
   app: { flex: 1 },
   content: { padding: theme.spacing.lg, paddingBottom: 40 },
