@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evolua_core_homologacao
+      POSTGRES_USER: evolua_homologacao
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque-esta-senha}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_homologation_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolua_homologacao -d evolua_core_homologacao"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_homologation_data:/data
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: evolua_homologacao
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-troque-esta-senha}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_homologation_data:/var/lib/rabbitmq
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: evolua_homologacao
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-troque-esta-senha}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_homologation_data:/data
+
+volumes:
+  postgres_homologation_data:
+  redis_homologation_data:
+  rabbitmq_homologation_data:
+  minio_homologation_data:
