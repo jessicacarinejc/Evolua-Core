@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AssistantController } from './assistant/assistant.controller';
+import { AssistantService } from './assistant/assistant.service';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthService } from './auth/auth.service';
@@ -37,6 +39,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     ProgressController,
     NutritionController,
     ProfileController,
+    AssistantController,
   ],
   providers: [
     DatabaseService,
@@ -56,6 +59,7 @@ import { WorkoutSessionService } from './workouts/workout-session.service';
     NutritionService,
     MealPlanService,
     ProfileService,
+    AssistantService,
   ],
 })
 export class AppModule {}
