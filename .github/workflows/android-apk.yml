@@ -1,0 +1,73 @@
+name: Evolua Core Android APK
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'scripts/build-android-homologation.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-apk.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'scripts/build-android-homologation.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evolua-android-apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Gerar APK Android de homologação
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # URL apenas para permitir a compilação enquanto o endpoint de homologação
+      # passa a ser configurável em runtime. Não representa ambiente externo.
+      EXPO_PUBLIC_API_URL: http://192.0.2.1:3333/v1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck mobile
+        run: npm --workspace @evolua/mobile run typecheck
+
+      - name: Gerar APK
+        run: npm run homologacao:android
+
+      - name: Publicar APK e manifesto
+        uses: actions/upload-artifact@v7
+        with:
+          name: evolua-core-android-homologacao-${{ github.sha }}
+          path: |
+            dist/*.apk
+            dist/*.json
+          if-no-files-found: error
+          retention-days: 14
