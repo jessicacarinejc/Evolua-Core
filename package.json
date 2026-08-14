@@ -17,6 +17,7 @@
     "homologacao:infra": "docker compose --env-file .env.homologation -f docker-compose.homologation.yml up -d",
     "homologacao:migrate": "node --env-file=.env.homologation scripts/apply-local-migrations.mjs",
     "homologacao:api": "node --env-file=.env.homologation scripts/start-local-homologation-api.mjs",
+    "homologacao:rede": "node --env-file=.env.homologation scripts/verify-local-device-network.mjs",
     "homologacao:android": "node --env-file=.env.homologation scripts/build-android-homologation.mjs",
     "homologacao:ios": "node --env-file=.env.homologation scripts/build-ios-homologation.mjs",
     "homologacao:portal": "node --env-file=.env.homologation scripts/serve-professional-portal.mjs",
