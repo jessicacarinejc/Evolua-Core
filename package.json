@@ -20,7 +20,8 @@
     "homologacao:android": "node scripts/build-android-homologation.mjs",
     "homologacao:portal": "node scripts/serve-professional-portal.mjs",
     "homologacao:admin": "node scripts/promote-local-admin.mjs",
-    "homologacao:smoke": "node scripts/smoke-local-homologation.mjs"
+    "homologacao:smoke": "node scripts/smoke-local-homologation.mjs",
+    "homologacao:media": "node scripts/audit-local-media.mjs"
   },
   "engines": {
     "node": ">=20.19"
