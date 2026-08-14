@@ -58,6 +58,9 @@ jobs:
       - name: Typecheck mobile
         run: npm --workspace @evolua/mobile run typecheck
 
+      - name: Preparar ambiente temporário de build
+        run: printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" > .env.homologation
+
       - name: Gerar APK
         run: npm run homologacao:android
 
