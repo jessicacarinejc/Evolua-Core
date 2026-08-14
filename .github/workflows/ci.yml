@@ -17,7 +17,13 @@ jobs:
   validate:
     name: Typecheck, build e homologação local
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+
+    env:
+      API_PORT: '3333'
+      DATABASE_URL: postgresql://evolua:evolua@127.0.0.1:5432/evolua_core
+      SESSION_DAYS: '30'
+      API_URL: http://127.0.0.1:3333/v1
 
     steps:
       - name: Checkout
@@ -53,3 +59,42 @@ jobs:
 
       - name: Validar Docker Compose de homologação
         run: docker compose --env-file .env.homologation.example -f docker-compose.homologation.yml config >/dev/null
+
+      - name: Subir PostgreSQL real para E2E
+        run: |
+          docker compose up -d postgres
+          for attempt in {1..30}; do
+            if docker compose exec -T postgres pg_isready -U evolua -d evolua_core >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs postgres
+          exit 1
+
+      - name: Aplicar todas as migrações
+        run: node scripts/apply-local-migrations.mjs
+
+      - name: Iniciar API compilada
+        run: |
+          nohup npm --workspace @evolua/api run start > /tmp/evolua-api.log 2>&1 &
+          echo $! > /tmp/evolua-api.pid
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3333/v1/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/evolua-api.log
+          exit 1
+
+      - name: Executar E2E dos fluxos principais
+        run: node scripts/e2e-local-homologation.mjs
+
+      - name: Exibir log da API em caso de falha
+        if: failure()
+        run: cat /tmp/evolua-api.log || true
+
+      - name: Encerrar infraestrutura de teste
+        if: always()
+        run: docker compose down -v
