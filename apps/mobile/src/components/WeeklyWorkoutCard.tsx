@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { theme } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 type WeeklyStatus =
   | 'concluido'
@@ -56,31 +57,40 @@ export function WeeklyWorkoutCard({ token }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    void (async () => {
-      try {
-        const response = await fetch(`${API_URL}/workouts/week`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          const message = Array.isArray(payload?.message)
-            ? payload.message.join('\n')
-            : payload?.message ?? 'Não foi possível carregar o planejamento semanal.';
-          throw new Error(message);
-        }
-        if (active) setWeek(payload as WeeklyPlan);
-      } catch (cause) {
-        if (active) setError(cause instanceof Error ? cause.message : 'Não foi possível carregar a semana.');
-      } finally {
-        if (active) setLoading(false);
+  const loadWeek = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(`${API_URL}/workouts/week`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = Array.isArray(payload?.message)
+          ? payload.message.join('\n')
+          : payload?.message ?? 'Não foi possível carregar o planejamento semanal.';
+        throw new Error(message);
       }
-    })();
-    return () => {
-      active = false;
-    };
+      setWeek(payload as WeeklyPlan);
+    } catch (cause) {
+      if (cause instanceof Error && cause.name === 'AbortError') {
+        setError('A API demorou para responder. Confira a rede local e tente novamente.');
+      } else {
+        setError('Não foi possível carregar sua semana. Verifique a conexão com a API local e tente novamente.');
+      }
+    } finally {
+      clearTimeout(timeout);
+      setLoading(false);
+    }
   }, [token]);
+
+  useEffect(() => {
+    void loadWeek();
+  }, [loadWeek]);
 
   return (
     <View style={styles.card}>
@@ -92,7 +102,12 @@ export function WeeklyWorkoutCard({ token }: Props) {
           <Text style={styles.muted}>Carregando semana...</Text>
         </View>
       ) : error ? (
-        <Text style={styles.error}>{error}</Text>
+        <View style={styles.errorBox}>
+          <Text style={styles.error}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={() => void loadWeek()}>
+            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          </Pressable>
+        </View>
       ) : week ? (
         <>
           <Text style={styles.summary}>{week.preferredDaysPerWeek} dias/semana · sessões de até {week.sessionMinutes} min</Text>
@@ -107,7 +122,9 @@ export function WeeklyWorkoutCard({ token }: Props) {
           </View>
           <Text style={styles.note}>{week.policy.note}</Text>
         </>
-      ) : null}
+      ) : (
+        <Text style={styles.muted}>Nenhum planejamento disponível para esta semana.</Text>
+      )}
     </View>
   );
 }
@@ -118,8 +135,11 @@ const styles = StyleSheet.create({
   title: { color: theme.colors.white, fontSize: 20, fontWeight: '900', marginTop: 5 },
   summary: { color: '#C8D4E3', fontSize: 12, marginTop: 6 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
-  muted: { color: '#C8D4E3', fontSize: 12 },
-  error: { color: '#FFD5D5', fontSize: 12, lineHeight: 18, marginTop: 12 },
+  muted: { color: '#C8D4E3', fontSize: 12, marginTop: 12 },
+  errorBox: { marginTop: 12 },
+  error: { color: '#FFD5D5', fontSize: 12, lineHeight: 18 },
+  retryButton: { alignSelf: 'flex-start', backgroundColor: theme.colors.lime, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginTop: 10 },
+  retryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 11 },
   daysRow: { flexDirection: 'row', gap: 5, marginTop: 14 },
   day: { flex: 1, minHeight: 86, backgroundColor: '#23436D', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 4, alignItems: 'center' },
   today: { backgroundColor: theme.colors.lime },
