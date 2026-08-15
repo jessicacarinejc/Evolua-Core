@@ -18,6 +18,7 @@ export class ProfileService {
 
   async update(userId: string, input: OnboardingDto, safety: unknown) {
     const birthDate = this.normalizeDate(input.birthDate);
+    const goals = this.normalizeGoals(input);
     const currentWeight = await this.db.query<{ weight_kg: string | null }>(
       `SELECT weight_kg FROM body_metrics
        WHERE user_id = $1 AND weight_kg IS NOT NULL
@@ -28,16 +29,17 @@ export class ProfileService {
 
     await this.db.transaction(async (client) => {
       await client.query(
-        `INSERT INTO profiles (user_id, display_name, birth_date, height_cm, training_level, primary_goal, onboarding_completed_at)
-         VALUES ($1,$2,$3,$4,$5,$6,now())
+        `INSERT INTO profiles (user_id, display_name, birth_date, height_cm, training_level, primary_goal, goals, onboarding_completed_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,now())
          ON CONFLICT (user_id) DO UPDATE SET
            display_name = EXCLUDED.display_name,
            birth_date = EXCLUDED.birth_date,
            height_cm = EXCLUDED.height_cm,
            training_level = EXCLUDED.training_level,
            primary_goal = EXCLUDED.primary_goal,
+           goals = EXCLUDED.goals,
            updated_at = now()`,
-        [userId, input.displayName.trim(), birthDate, input.heightCm, input.trainingLevel, input.primaryGoal],
+        [userId, input.displayName.trim(), birthDate, input.heightCm, input.trainingLevel, input.primaryGoal, goals],
       );
 
       await client.query(
@@ -62,12 +64,21 @@ export class ProfileService {
       await client.query(
         `INSERT INTO audit_logs (actor_user_id, action, resource_type, resource_id, metadata)
          VALUES ($1::uuid,'profile.updated','profile',$2::text,$3::jsonb)`,
-        [userId, userId, JSON.stringify({ safety })],
+        [userId, userId, JSON.stringify({ safety, goals })],
       );
     });
 
     const user = await this.auth.me(userId);
     return { saved: true, profile: user.profile };
+  }
+
+  private normalizeGoals(input: OnboardingDto) {
+    const requested = input.goals?.length ? input.goals : [input.primaryGoal];
+    const unique = [...new Set(requested.filter(Boolean))];
+    const withPrimary = unique.includes(input.primaryGoal)
+      ? unique
+      : [input.primaryGoal, ...unique];
+    return withPrimary.slice(0, 3);
   }
 
   private async replaceEquipment(client: PoolClient, userId: string, labels: string[]) {
