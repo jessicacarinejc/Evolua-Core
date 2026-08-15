@@ -1,0 +1,18 @@
+{
+  "name": "Evolua Core Homologação",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [3333],
+  "portsAttributes": {
+    "3333": {
+      "label": "Evolua Core API",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  },
+  "postCreateCommand": "npm install --no-audit --no-fund",
+  "postStartCommand": "bash .devcontainer/start-homologation.sh",
+  "remoteUser": "node"
+}
