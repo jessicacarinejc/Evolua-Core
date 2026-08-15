@@ -2,11 +2,25 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DatabaseService } from '../database/database.service';
 import { WorkoutSafetyService } from './workout-safety.service';
 
+type TrainingIntensity = 'leve' | 'moderada' | 'alta';
+type ExercisePreferenceLevel = 'evitar' | 'neutro' | 'preferir' | 'adorar';
+type MuscleFocusMode = 'equilibrado' | 'foco_corpo_todo' | 'somente_selecionados';
+
 type ProfileRow = {
-  primary_goal: 'emagrecimento' | 'hipertrofia' | 'forca' | 'condicionamento' | 'manutencao';
+  primary_goal: string;
   training_level: 'iniciante' | 'intermediario' | 'avancado';
   training_days_per_week: number;
   session_minutes: number;
+  training_environment: 'academia' | 'casa' | 'misto';
+  available_days: string[];
+  aerobic_days: string[];
+  intensity_preference: number;
+  past_activity_level: number;
+  exercise_variety: number;
+  muscle_focus: string[];
+  muscle_focus_mode: MuscleFocusMode;
+  exercise_type_preferences: Record<string, ExercisePreferenceLevel>;
+  excluded_exercise_types: string[];
 };
 
 type CheckinRow = {
@@ -61,6 +75,10 @@ function normalize(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 }
 
+function normalizedToken(value: string) {
+  return normalize(value).replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 const splitMuscles: Record<string, string[]> = {
   'corpo inteiro': ['quadriceps', 'gluteos', 'posteriores', 'peitoral', 'costas', 'ombros', 'core'],
   superior: ['peitoral', 'costas', 'ombros', 'biceps', 'triceps', 'core'],
@@ -69,6 +87,27 @@ const splitMuscles: Record<string, string[]> = {
   puxar: ['costas', 'biceps'],
   pernas: ['quadriceps', 'gluteos', 'posteriores', 'panturrilhas'],
   recuperacao: ['cardiorrespiratorio', 'core'],
+};
+
+const focusMuscleAliases: Record<string, string[]> = {
+  peito: ['peitoral'],
+  costas: ['costas', 'dorsal', 'latissimo'],
+  ombros: ['ombros', 'deltoides'],
+  biceps: ['biceps'],
+  triceps: ['triceps'],
+  antebracos: ['antebracos'],
+  'abdomen core': ['core', 'abdomen', 'abdominais'],
+  lombar: ['lombar', 'eretores'],
+  gluteos: ['gluteos'],
+  quadriceps: ['quadriceps'],
+  'posteriores de coxa': ['posteriores', 'isquiotibiais'],
+  panturrilhas: ['panturrilhas'],
+};
+
+const intensityRank: Record<TrainingIntensity, number> = {
+  leve: 1,
+  moderada: 2,
+  alta: 3,
 };
 
 @Injectable()
@@ -84,7 +123,17 @@ export class WorkoutEngineService {
          p.primary_goal,
          p.training_level,
          COALESCE(tp.training_days_per_week, 3) AS training_days_per_week,
-         COALESCE(tp.session_minutes, 45) AS session_minutes
+         COALESCE(tp.session_minutes, 45) AS session_minutes,
+         COALESCE(tp.training_environment, 'misto') AS training_environment,
+         COALESCE(tp.available_days, '{}'::text[]) AS available_days,
+         COALESCE(tp.aerobic_days, '{}'::text[]) AS aerobic_days,
+         COALESCE(tp.intensity_preference, 3) AS intensity_preference,
+         COALESCE(tp.past_activity_level, 2) AS past_activity_level,
+         COALESCE(tp.exercise_variety, 2) AS exercise_variety,
+         COALESCE(tp.muscle_focus, '{}'::text[]) AS muscle_focus,
+         COALESCE(tp.muscle_focus_mode, 'equilibrado') AS muscle_focus_mode,
+         COALESCE(tp.exercise_type_preferences, '{}'::jsonb) AS exercise_type_preferences,
+         COALESCE(tp.excluded_exercise_types, '{}'::text[]) AS excluded_exercise_types
        FROM profiles p
        LEFT JOIN training_preferences tp ON tp.user_id = p.user_id
        WHERE p.user_id = $1`,
@@ -182,11 +231,17 @@ export class WorkoutEngineService {
     const aliases: Record<string, string[]> = {
       halteres: ['halteres'],
       barras: ['barras', 'barra'],
+      barra: ['barra', 'barras'],
       maquinas: ['maquinas', 'maquina'],
-      cabo: ['cabo', 'maquinas'],
+      maquina: ['maquinas', 'maquina'],
+      cabo: ['cabo', 'cabos / crossover', 'polias', 'maquinas'],
+      cabos: ['cabo', 'cabos / crossover', 'polias', 'maquinas'],
       'peso corporal': ['peso corporal'],
-      bicicleta: ['bicicleta', 'academia completa'],
+      bicicleta: ['bicicleta', 'bicicleta ergometrica', 'academia completa'],
       elasticos: ['elasticos'],
+      banco: ['banco plano', 'banco inclinado', 'banco declinado', 'banco'],
+      kettlebell: ['kettlebell'],
+      trx: ['trx'],
     };
 
     return exercise.equipment.some((item) => {
@@ -196,17 +251,92 @@ export class WorkoutEngineService {
     });
   }
 
-  private prescription(goal: ProfileRow['primary_goal'], level: ProfileRow['training_level'], intensity: 'leve' | 'moderada' | 'alta', isCardio: boolean) {
+  private exerciseTypes(exercise: ExerciseRow) {
+    const types = new Set<string>();
+    const equipment = exercise.equipment.map(normalizedToken);
+    const pattern = normalizedToken(exercise.movement_pattern);
+    const name = normalizedToken(exercise.name);
+
+    if (equipment.some((item) => ['halteres', 'barra', 'barras', 'kettlebell', 'bola medicinal'].some((key) => item.includes(key)))) {
+      types.add('pesos_livres');
+    }
+    if (equipment.some((item) => ['peso corporal', 'trx', 'argolas', 'elastico', 'corda de batalha', 'step'].some((key) => item.includes(key)))) {
+      types.add('peso_corporal_funcional');
+    }
+    if (equipment.some((item) => item.includes('maquina') || item.includes('smith') || item.includes('leg press') || item.includes('hack'))) {
+      types.add('maquinas');
+    }
+    if (equipment.some((item) => item.includes('cabo') || item.includes('polia') || item.includes('crossover'))) {
+      types.add('cabos_polias');
+    }
+    if (pattern.includes('cardio') || ['esteira', 'bicicleta', 'eliptico', 'remo', 'escada'].some((key) => name.includes(key) || equipment.some((item) => item.includes(key)))) {
+      types.add('aerobico');
+    }
+    if (pattern.includes('mobilidade') || name.includes('mobilidade')) types.add('mobilidade');
+    if (pattern.includes('flexibilidade') || name.includes('alongamento')) types.add('flexibilidade');
+    if (name.includes('yoga')) types.add('yoga');
+    if (['flexao', 'barra fixa', 'dips', 'mergulho', 'handstand', 'agachamento peso corporal'].some((key) => name.includes(key))) {
+      types.add('calistenia');
+      types.add('peso_corporal_funcional');
+    }
+    if (pattern.includes('hiit') || pattern.includes('circuito')) types.add('circuito_hiit');
+
+    return [...types];
+  }
+
+  private isExcludedByPreference(exercise: ExerciseRow, excluded: string[]) {
+    if (!excluded.length) return false;
+    const exerciseTypes = this.exerciseTypes(exercise);
+    return exerciseTypes.some((type) => excluded.includes(type));
+  }
+
+  private preferenceScore(exercise: ExerciseRow, preferences: Record<string, ExercisePreferenceLevel>) {
+    const scores: Record<ExercisePreferenceLevel, number> = {
+      evitar: -2,
+      neutro: 0,
+      preferir: 2,
+      adorar: 4,
+    };
+    const exerciseTypes = this.exerciseTypes(exercise);
+    if (!exerciseTypes.length) return 0;
+    return Math.max(...exerciseTypes.map((type) => scores[preferences[type] ?? 'neutro']));
+  }
+
+  private selectedFocusMuscles(labels: string[]) {
+    const muscles = new Set<string>();
+    for (const label of labels) {
+      const key = normalizedToken(label);
+      const aliases = focusMuscleAliases[key] ?? [key];
+      aliases.forEach((alias) => muscles.add(alias));
+    }
+    return muscles;
+  }
+
+  private exerciseMatchesMuscle(exercise: ExerciseRow, muscles: Set<string>) {
+    if (!muscles.size) return false;
+    const exerciseMuscles = [exercise.primary_muscle, ...(exercise.secondary_muscles ?? [])]
+      .map(normalizedToken);
+    return exerciseMuscles.some((muscle) => [...muscles].some((target) => muscle.includes(target) || target.includes(muscle)));
+  }
+
+  private preferredIntensity(safetyIntensity: TrainingIntensity, preference: number, pastActivity: number) {
+    const desired: TrainingIntensity = preference <= 2 ? 'leve' : preference === 3 ? 'moderada' : 'alta';
+    const activityCap: TrainingIntensity = pastActivity <= 1 ? 'leve' : pastActivity === 2 ? 'moderada' : 'alta';
+    const rank = Math.min(intensityRank[safetyIntensity], intensityRank[desired], intensityRank[activityCap]);
+    return (Object.entries(intensityRank).find(([, value]) => value === rank)?.[0] ?? 'leve') as TrainingIntensity;
+  }
+
+  private prescription(goal: string, level: ProfileRow['training_level'], intensity: TrainingIntensity, isCardio: boolean) {
     if (isCardio) {
       return { sets: 1, repsMin: null, repsMax: null, durationSeconds: intensity === 'leve' ? 600 : 480, restSeconds: 60, targetRir: 4 };
     }
 
     const sets = intensity === 'leve' ? 2 : level === 'avancado' && intensity === 'alta' ? 4 : 3;
-    const ranges = goal === 'forca'
+    const ranges = goal === 'forca' || goal === 'potencia'
       ? [5, 8]
-      : goal === 'hipertrofia'
+      : ['hipertrofia', 'recomposicao_corporal'].includes(goal)
         ? [8, 12]
-        : goal === 'condicionamento' || goal === 'emagrecimento'
+        : ['condicionamento', 'emagrecimento', 'tonificacao', 'resistencia_muscular'].includes(goal)
           ? [10, 15]
           : [8, 12];
 
@@ -215,7 +345,7 @@ export class WorkoutEngineService {
       repsMin: ranges[0],
       repsMax: ranges[1],
       durationSeconds: null,
-      restSeconds: goal === 'forca' ? 120 : intensity === 'alta' ? 90 : 75,
+      restSeconds: goal === 'forca' || goal === 'potencia' ? 120 : intensity === 'alta' ? 90 : 75,
       targetRir: intensity === 'leve' ? 4 : intensity === 'moderada' ? 3 : 2,
     };
   }
@@ -316,19 +446,53 @@ export class WorkoutEngineService {
       safety.notes.push('Ocorrência recente de dor/sintoma durante treino: a intensidade automática foi limitada e o sinal foi incorporado às regras de segurança.');
     }
 
-    const all = await this.catalog();
-    const targetMuscles = new Set(splitMuscles[split] ?? splitMuscles['corpo inteiro']);
-    const safe = all
-      .filter((exercise) => !safety.blockedPatterns.includes(exercise.movement_pattern))
-      .filter((exercise) => this.equipmentMatches(exercise, equipment));
+    const effectiveIntensity = this.preferredIntensity(
+      safety.allowedIntensity,
+      profile.intensity_preference,
+      profile.past_activity_level,
+    );
+    if (effectiveIntensity !== safety.allowedIntensity) {
+      safety.notes.push('A intensidade foi reduzida para respeitar sua preferência atual e seu histórico recente de atividade.');
+    }
 
-    const prioritized = [
-      ...safe.filter((exercise) => targetMuscles.has(normalize(exercise.primary_muscle))),
-      ...safe.filter((exercise) => !targetMuscles.has(normalize(exercise.primary_muscle))),
-    ].filter((exercise, index, list) => list.findIndex((item) => item.id === exercise.id) === index);
+    const all = await this.catalog();
+    const splitTargets = new Set(splitMuscles[split] ?? splitMuscles['corpo inteiro']);
+    const focusTargets = this.selectedFocusMuscles(profile.muscle_focus);
+
+    let safe = all
+      .filter((exercise) => !safety.blockedPatterns.includes(exercise.movement_pattern))
+      .filter((exercise) => this.equipmentMatches(exercise, equipment))
+      .filter((exercise) => !this.isExcludedByPreference(exercise, profile.excluded_exercise_types));
+
+    if (profile.muscle_focus_mode === 'somente_selecionados' && focusTargets.size > 0) {
+      safe = safe.filter((exercise) => this.exerciseMatchesMuscle(exercise, focusTargets));
+      if (safe.length < 3) {
+        throw new BadRequestException('Não há exercícios seguros suficientes para treinar somente os músculos selecionados com os equipamentos atuais. Ajuste o foco muscular ou os equipamentos disponíveis.');
+      }
+    }
+
+    const scoreExercise = (exercise: ExerciseRow) => {
+      let score = this.preferenceScore(exercise, profile.exercise_type_preferences);
+      if (splitTargets.has(normalize(exercise.primary_muscle))) score += 5;
+      if (profile.muscle_focus_mode === 'foco_corpo_todo' && this.exerciseMatchesMuscle(exercise, focusTargets)) score += 8;
+      if (profile.muscle_focus_mode === 'somente_selecionados' && this.exerciseMatchesMuscle(exercise, focusTargets)) score += 8;
+      return score;
+    };
+
+    const prioritized = [...safe].sort((a, b) => {
+      const scoreDifference = scoreExercise(b) - scoreExercise(a);
+      if (scoreDifference !== 0) return scoreDifference;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
 
     const limit = checkin.available_minutes <= 30 ? 4 : checkin.available_minutes <= 45 ? 5 : checkin.available_minutes <= 60 ? 6 : 7;
-    const selected = prioritized.slice(0, limit);
+    const variationWindow = Math.max(limit, Math.min(prioritized.length, limit * profile.exercise_variety));
+    const variationPool = prioritized.slice(0, variationWindow);
+    const offset = profile.exercise_variety <= 1 || variationPool.length <= limit
+      ? 0
+      : completedSessions % variationPool.length;
+    const rotated = [...variationPool.slice(offset), ...variationPool.slice(0, offset)];
+    const selected = rotated.slice(0, limit);
 
     if (selected.length < 3) {
       throw new BadRequestException('Não há exercícios compatíveis suficientes para gerar um treino seguro com os dados atuais.');
@@ -338,10 +502,10 @@ export class WorkoutEngineService {
       const prescription = this.prescription(
         profile.primary_goal,
         profile.training_level,
-        safety.allowedIntensity,
+        effectiveIntensity,
         exercise.movement_pattern === 'cardio-baixo-impacto',
       );
-      const mayUseHistory = !prescription.durationSeconds && safety.allowedIntensity !== 'leve' && checkin.status !== 'recovery';
+      const mayUseHistory = !prescription.durationSeconds && effectiveIntensity !== 'leve' && checkin.status !== 'recovery';
       return {
         ...exercise,
         ...prescription,
@@ -369,11 +533,24 @@ export class WorkoutEngineService {
           JSON.stringify({
             split,
             recoveryScore: effectiveRecoveryScore,
+            safetyAllowedIntensity: safety.allowedIntensity,
+            userPreferences: {
+              trainingEnvironment: profile.training_environment,
+              availableDays: profile.available_days,
+              aerobicDays: profile.aerobic_days,
+              intensityPreference: profile.intensity_preference,
+              pastActivityLevel: profile.past_activity_level,
+              exerciseVariety: profile.exercise_variety,
+              muscleFocus: profile.muscle_focus,
+              muscleFocusMode: profile.muscle_focus_mode,
+              excludedExerciseTypes: profile.excluded_exercise_types,
+            },
             recentSessionSignals: {
               painAreas: recentSafety.painAreas,
               intensityLimited: recentSafety.moderateSignal,
             },
             ...safety,
+            allowedIntensity: effectiveIntensity,
           }),
         ],
       );
