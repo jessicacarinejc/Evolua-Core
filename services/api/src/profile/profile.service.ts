@@ -62,9 +62,9 @@ export class ProfileService {
           JSON.stringify({
             safety,
             goals,
-            trainingEnvironment: input.trainingEnvironment ?? 'misto',
-            availableDays: input.availableDays ?? [],
-            musicEnabled: input.musicEnabled ?? true,
+            trainingEnvironment: input.trainingEnvironment,
+            availableDays: input.availableDays,
+            musicEnabled: input.musicEnabled,
           }),
         ],
       );
@@ -75,6 +75,35 @@ export class ProfileService {
   }
 
   private async upsertTrainingPreferences(client: PoolClient, userId: string, input: OnboardingDto) {
+    const currentResult = await client.query<any>(
+      `SELECT
+         training_environment, available_days, aerobic_days, training_plan_mode,
+         schedule_management, intensity_preference, past_activity_level,
+         exercise_variety, muscle_focus, muscle_focus_mode,
+         exercise_type_preferences, excluded_exercise_types,
+         music_enabled, music_style, music_volume
+       FROM training_preferences
+       WHERE user_id = $1`,
+      [userId],
+    );
+    const current = currentResult.rows[0] ?? null;
+
+    const trainingEnvironment = input.trainingEnvironment ?? current?.training_environment ?? 'misto';
+    const availableDays = input.availableDays ?? current?.available_days ?? [];
+    const aerobicDays = input.aerobicDays ?? current?.aerobic_days ?? [];
+    const trainingPlanMode = input.trainingPlanMode ?? current?.training_plan_mode ?? 'automatico';
+    const scheduleManagement = input.scheduleManagement ?? current?.schedule_management ?? 'automatico';
+    const intensityPreference = input.intensityPreference ?? current?.intensity_preference ?? 3;
+    const pastActivityLevel = input.pastActivityLevel ?? current?.past_activity_level ?? 2;
+    const exerciseVariety = input.exerciseVariety ?? current?.exercise_variety ?? 2;
+    const muscleFocus = input.muscleFocus ?? current?.muscle_focus ?? [];
+    const muscleFocusMode = input.muscleFocusMode ?? current?.muscle_focus_mode ?? 'equilibrado';
+    const exerciseTypePreferences = input.exerciseTypePreferences ?? current?.exercise_type_preferences ?? {};
+    const excludedExerciseTypes = input.excludedExerciseTypes ?? current?.excluded_exercise_types ?? [];
+    const musicEnabled = input.musicEnabled ?? current?.music_enabled ?? true;
+    const musicStyle = input.musicStyle ?? current?.music_style ?? 'gym_mix';
+    const musicVolume = input.musicVolume ?? current?.music_volume ?? 55;
+
     await client.query(
       `INSERT INTO training_preferences (
          user_id, training_days_per_week, session_minutes, training_environment,
@@ -108,21 +137,21 @@ export class ProfileService {
         userId,
         input.trainingDaysPerWeek,
         input.sessionMinutes,
-        input.trainingEnvironment ?? 'misto',
-        input.availableDays ?? [],
-        input.aerobicDays ?? [],
-        input.trainingPlanMode ?? 'automatico',
-        input.scheduleManagement ?? 'automatico',
-        input.intensityPreference ?? 3,
-        input.pastActivityLevel ?? 2,
-        input.exerciseVariety ?? 2,
-        input.muscleFocus ?? [],
-        input.muscleFocusMode ?? 'equilibrado',
-        JSON.stringify(input.exerciseTypePreferences ?? {}),
-        input.excludedExerciseTypes ?? [],
-        input.musicEnabled ?? true,
-        input.musicStyle ?? 'gym_mix',
-        input.musicVolume ?? 55,
+        trainingEnvironment,
+        availableDays,
+        aerobicDays,
+        trainingPlanMode,
+        scheduleManagement,
+        intensityPreference,
+        pastActivityLevel,
+        exerciseVariety,
+        muscleFocus,
+        muscleFocusMode,
+        JSON.stringify(exerciseTypePreferences),
+        excludedExerciseTypes,
+        musicEnabled,
+        musicStyle,
+        musicVolume,
       ],
     );
   }
