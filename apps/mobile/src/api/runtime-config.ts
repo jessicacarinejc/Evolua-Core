@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_URL_KEY = 'evolua_core_api_base_url';
 const BUILD_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
+const OFFLINE_HOMOLOGATION = process.env.EXPO_PUBLIC_HOMOLOGATION_OFFLINE === '1';
 const PLACEHOLDER_HOSTS = new Set(['192.0.2.1', '10.0.2.2', 'localhost', '127.0.0.1', '::1']);
 
 function normalizeApiUrl(value: string) {
@@ -24,6 +25,10 @@ function normalizeApiUrl(value: string) {
   return trimmed;
 }
 
+export function isOfflineHomologation() {
+  return OFFLINE_HOMOLOGATION;
+}
+
 export function isPlaceholderApiUrl(value: string) {
   try {
     const parsed = new URL(normalizeApiUrl(value));
@@ -34,6 +39,9 @@ export function isPlaceholderApiUrl(value: string) {
 }
 
 export async function probeApiBaseUrl(value: string, timeoutMs = 6000) {
+  if (OFFLINE_HOMOLOGATION) {
+    return { ok: true, message: 'Homologação offline ativa no próprio aparelho.' };
+  }
   const normalized = normalizeApiUrl(value);
   if (isPlaceholderApiUrl(normalized)) {
     return { ok: false, message: 'O aplicativo ainda está usando um endereço temporário de build.' };
