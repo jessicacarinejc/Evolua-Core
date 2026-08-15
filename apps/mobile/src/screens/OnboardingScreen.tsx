@@ -7,7 +7,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { initialOnboardingData, OnboardingData, PrimaryGoal, TrainingLevel } from '../onboarding/types';
+import {
+  goalOptions,
+  initialOnboardingData,
+  MAX_SELECTED_GOALS,
+  OnboardingData,
+  PrimaryGoal,
+  TrainingLevel,
+} from '../onboarding/types';
 import { theme } from '../theme';
 
 type Props = {
@@ -17,19 +24,13 @@ type Props = {
 type Step = 'perfil' | 'objetivo' | 'treino' | 'saude' | 'nutricao';
 
 const steps: Step[] = ['perfil', 'objetivo', 'treino', 'saude', 'nutricao'];
-const goalOptions: { value: PrimaryGoal; label: string }[] = [
-  { value: 'emagrecimento', label: 'Emagrecimento' },
-  { value: 'hipertrofia', label: 'Hipertrofia' },
-  { value: 'forca', label: 'Força' },
-  { value: 'condicionamento', label: 'Condicionamento' },
-  { value: 'manutencao', label: 'Manutenção' },
-];
+const goalCategories = [...new Set(goalOptions.map((option) => option.category))];
 const levelOptions: { value: TrainingLevel; label: string }[] = [
   { value: 'iniciante', label: 'Iniciante' },
   { value: 'intermediario', label: 'Intermediário' },
   { value: 'avancado', label: 'Avançado' },
 ];
-const equipmentOptions = ['Academia completa', 'Halteres', 'Barras', 'Máquinas', 'Elásticos', 'Peso corporal'];
+const equipmentOptions = ['Academia completa', 'Halteres', 'Barras', 'Máquinas', 'Cabos', 'Elásticos', 'Kettlebell', 'Banco', 'TRX', 'Bicicleta', 'Esteira', 'Peso corporal'];
 const conditionOptions = ['Diabetes', 'Hipertensão', 'Doença renal', 'Gestação', 'Cardiopatia', 'Nenhuma informada'];
 const painOptions = ['Joelhos', 'Coluna lombar', 'Ombros', 'Quadril', 'Punhos', 'Tornozelos'];
 const foodOptions = ['Lactose', 'Glúten', 'Amendoim', 'Frutos do mar', 'Ovos', 'Vegetariano', 'Vegano'];
@@ -52,14 +53,46 @@ export function OnboardingScreen({ onFinish }: Props) {
   const step = steps[stepIndex];
   const progress = ((stepIndex + 1) / steps.length) * 100;
 
+  const selectedGoals = data.goals.length > 0
+    ? data.goals
+    : data.primaryGoal
+      ? [data.primaryGoal]
+      : [];
+
   const canAdvance = useMemo(() => {
     if (step === 'perfil') return Boolean(data.displayName && data.birthDate && data.heightCm && data.weightKg);
-    if (step === 'objetivo') return Boolean(data.primaryGoal && data.trainingLevel);
+    if (step === 'objetivo') return Boolean(selectedGoals.length > 0 && data.primaryGoal && data.trainingLevel);
     return true;
-  }, [data, step]);
+  }, [data, selectedGoals.length, step]);
+
+  const selectGoal = (goal: PrimaryGoal) => {
+    setData((current) => {
+      const currentGoals = current.goals.length > 0
+        ? current.goals
+        : current.primaryGoal
+          ? [current.primaryGoal]
+          : [];
+
+      if (currentGoals.includes(goal)) {
+        const nextGoals = currentGoals.filter((item) => item !== goal);
+        const nextPrimary = current.primaryGoal === goal
+          ? (nextGoals[0] ?? '')
+          : current.primaryGoal;
+        return { ...current, goals: nextGoals, primaryGoal: nextPrimary };
+      }
+
+      if (currentGoals.length >= MAX_SELECTED_GOALS) return current;
+      const nextGoals = [...currentGoals, goal];
+      return {
+        ...current,
+        goals: nextGoals,
+        primaryGoal: current.primaryGoal || goal,
+      };
+    });
+  };
 
   const next = () => {
-    if (stepIndex === steps.length - 1) onFinish(data);
+    if (stepIndex === steps.length - 1) onFinish({ ...data, goals: selectedGoals });
     else setStepIndex((current) => current + 1);
   };
 
@@ -89,10 +122,33 @@ export function OnboardingScreen({ onFinish }: Props) {
 
         {step === 'objetivo' && (
           <>
-            <Text style={styles.title}>Qual é o seu foco?</Text>
-            <Text style={styles.subtitle}>O objetivo define prioridade de volume, intensidade e metas nutricionais.</Text>
-            <Text style={styles.label}>Objetivo principal</Text>
-            <View style={styles.chips}>{goalOptions.map((option) => <Chip key={option.value} label={option.label} active={data.primaryGoal === option.value} onPress={() => setData({ ...data, primaryGoal: option.value })} />)}</View>
+            <Text style={styles.title}>Quais são seus objetivos?</Text>
+            <Text style={styles.subtitle}>Escolha de 1 a {MAX_SELECTED_GOALS} objetivos. O primeiro selecionado fica como prioridade e os demais complementam a montagem dos treinos.</Text>
+            <View style={styles.selectionCounter}>
+              <Text style={styles.selectionCounterText}>{selectedGoals.length}/{MAX_SELECTED_GOALS} selecionados</Text>
+              {data.primaryGoal ? <Text style={styles.primaryGoalText}>Prioridade: {goalOptions.find((option) => option.value === data.primaryGoal)?.label}</Text> : null}
+            </View>
+
+            {goalCategories.map((category) => (
+              <View key={category} style={styles.goalGroup}>
+                <Text style={styles.goalCategory}>{category}</Text>
+                <View style={styles.chips}>
+                  {goalOptions.filter((option) => option.category === category).map((option) => (
+                    <Chip
+                      key={option.value}
+                      label={option.label}
+                      active={selectedGoals.includes(option.value)}
+                      onPress={() => selectGoal(option.value)}
+                    />
+                  ))}
+                </View>
+              </View>
+            ))}
+
+            {selectedGoals.length >= MAX_SELECTED_GOALS ? (
+              <Text style={styles.limitText}>Limite de {MAX_SELECTED_GOALS} objetivos atingido. Desmarque um para escolher outro.</Text>
+            ) : null}
+
             <Text style={styles.label}>Experiência com treino</Text>
             <View style={styles.chips}>{levelOptions.map((option) => <Chip key={option.value} label={option.label} active={data.trainingLevel === option.value} onPress={() => setData({ ...data, trainingLevel: option.value })} />)}</View>
           </>
@@ -101,7 +157,7 @@ export function OnboardingScreen({ onFinish }: Props) {
         {step === 'treino' && (
           <>
             <Text style={styles.title}>Sua rotina de treino</Text>
-            <Text style={styles.subtitle}>O Evolua Core adapta o plano ao tempo real que você tem disponível.</Text>
+            <Text style={styles.subtitle}>O Evolua Core adapta o plano ao tempo real que você tem disponível e aos equipamentos que realmente pode usar.</Text>
             <Text style={styles.label}>Dias por semana</Text>
             <View style={styles.chips}>{[2, 3, 4, 5, 6].map((days) => <Chip key={days} label={`${days} dias`} active={data.trainingDaysPerWeek === days} onPress={() => setData({ ...data, trainingDaysPerWeek: days })} />)}</View>
             <Text style={styles.label}>Tempo por sessão</Text>
@@ -151,7 +207,7 @@ const styles = StyleSheet.create({
   progressValue: { height: 5, backgroundColor: theme.colors.lime },
   content: { padding: 24, paddingBottom: 38 },
   title: { color: theme.colors.navy, fontSize: 27, fontWeight: '900' },
-  subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 22 },
+  subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 18 },
   label: { color: theme.colors.text, fontWeight: '800', fontSize: 12, marginTop: 15, marginBottom: 8 },
   input: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: theme.colors.text },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -161,6 +217,12 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: '#EEF7DE', borderColor: theme.colors.lime },
   chipText: { color: theme.colors.textMuted, fontWeight: '700', fontSize: 12 },
   chipTextActive: { color: theme.colors.navy, fontWeight: '900' },
+  selectionCounter: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 12, marginBottom: 4 },
+  selectionCounterText: { color: theme.colors.navy, fontWeight: '900', fontSize: 12 },
+  primaryGoalText: { color: theme.colors.textMuted, fontSize: 11, marginTop: 4 },
+  goalGroup: { marginTop: 16 },
+  goalCategory: { color: theme.colors.navy, fontWeight: '900', fontSize: 13, marginBottom: 9 },
+  limitText: { color: theme.colors.warning, fontSize: 11, fontWeight: '700', marginTop: 12, lineHeight: 17 },
   warningCard: { marginTop: 22, backgroundColor: '#FFF4E5', borderRadius: 16, padding: 16 },
   warningTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },
   warningText: { color: theme.colors.textMuted, lineHeight: 19, fontSize: 12, marginTop: 5 },
