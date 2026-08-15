@@ -13,7 +13,7 @@ export type MuscleImpact = {
 };
 
 type ExerciseLike = Pick<WorkoutExercise, 'name' | 'primaryMuscle'> & {
-  sets?: number;
+  sets?: number | unknown[];
   plannedSets?: number;
   durationSeconds?: number | null;
 };
@@ -58,8 +58,14 @@ function normalizePrimary(primaryMuscle: string) {
   return { label: primaryMuscle || 'Corpo inteiro', area: 'core' as const };
 }
 
+function blockCount(exercise: ExerciseLike) {
+  if (Array.isArray(exercise.sets)) return exercise.sets.length;
+  if (typeof exercise.sets === 'number') return exercise.sets;
+  return Number(exercise.plannedSets ?? 1);
+}
+
 function exerciseWeight(exercise: ExerciseLike) {
-  const blocks = Number(exercise.sets ?? exercise.plannedSets ?? 1);
+  const blocks = blockCount(exercise);
   const timeFactor = exercise.durationSeconds ? Math.max(1, exercise.durationSeconds / 40) : 1;
   return Math.max(1, blocks) * timeFactor;
 }
@@ -107,7 +113,7 @@ export function workoutPhaseForProgress(completedBlocks: number, totalBlocks: nu
 }
 
 export function phaseSummary(exercises: Array<WorkoutExercise | WorkoutSessionExercise>) {
-  const totalBlocks = exercises.reduce((sum, item) => sum + Number('sets' in item ? item.sets : item.plannedSets), 0);
+  const totalBlocks = exercises.reduce((sum, item) => sum + blockCount(item), 0);
   return {
     warmupMinutes: Math.max(4, Math.min(8, Math.round(totalBlocks * 0.45))),
     mainMinutes: Math.max(12, Math.round(totalBlocks * 2.2)),
