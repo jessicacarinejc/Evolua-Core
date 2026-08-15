@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -9,12 +8,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { getApiBaseUrl, setApiBaseUrl } from '../api/runtime-config';
+import { getApiBaseUrl, isPlaceholderApiUrl, probeApiBaseUrl, setApiBaseUrl } from '../api/runtime-config';
 import { theme } from '../theme';
 
 type Props = {
   onSubmit: (mode: 'login' | 'register', email: string, password: string) => Promise<void>;
 };
+
+type EnvironmentStatus = 'checking' | 'ready' | 'missing' | 'error';
 
 export function AuthScreen({ onSubmit }: Props) {
   const [mode, setMode] = useState<'login' | 'register'>('register');
@@ -26,14 +27,43 @@ export function AuthScreen({ onSubmit }: Props) {
   const [apiUrl, setApiUrl] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
+  const [environmentStatus, setEnvironmentStatus] = useState<EnvironmentStatus>('checking');
+
+  const verifyEnvironment = async (url: string) => {
+    if (isPlaceholderApiUrl(url)) {
+      setEnvironmentStatus('missing');
+      setConfigMessage('A API de homologação ainda não está configurada para este aparelho.');
+      return false;
+    }
+    setEnvironmentStatus('checking');
+    const result = await probeApiBaseUrl(url);
+    setEnvironmentStatus(result.ok ? 'ready' : 'error');
+    setConfigMessage(result.message);
+    return result.ok;
+  };
 
   useEffect(() => {
-    void getApiBaseUrl().then(setApiUrl).catch(() => setApiUrl(''));
+    void (async () => {
+      try {
+        const url = await getApiBaseUrl();
+        setApiUrl(url);
+        await verifyEnvironment(url);
+      } catch {
+        setEnvironmentStatus('missing');
+        setConfigMessage('Configure a API de homologação antes de criar ou acessar uma conta.');
+      }
+    })();
   }, []);
 
-  const canContinue = email.trim().includes('@') && password.length >= 8 && !loading;
+  const credentialsValid = email.trim().includes('@') && password.length >= 8;
+  const canContinue = credentialsValid && environmentStatus === 'ready' && !loading;
 
   const submit = async () => {
+    if (environmentStatus !== 'ready') {
+      setConfigOpen(true);
+      setError('O servidor de homologação precisa estar conectado antes de continuar.');
+      return;
+    }
     if (!canContinue) return;
     setLoading(true);
     setError('');
@@ -52,18 +82,34 @@ export function AuthScreen({ onSubmit }: Props) {
     try {
       const saved = await setApiBaseUrl(apiUrl);
       setApiUrl(saved);
-      setConfigMessage('Ambiente de homologação salvo neste dispositivo.');
+      await verifyEnvironment(saved);
     } catch (cause) {
+      setEnvironmentStatus('error');
       setConfigMessage(cause instanceof Error ? cause.message : 'Não foi possível salvar o ambiente.');
     } finally {
       setConfigSaving(false);
     }
   };
 
+  const environmentLabel = environmentStatus === 'ready'
+    ? 'Ambiente conectado'
+    : environmentStatus === 'checking'
+      ? 'Verificando ambiente...'
+      : 'Ambiente não conectado';
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
       <View style={styles.brandArea}>
-        <Image source={require('../../assets/brand/icon.png')} style={styles.logo} resizeMode="contain" />
+        <View style={styles.logoMark} accessibilityLabel="Evolua Core">
+          <View style={styles.logoInner}>
+            <Text style={styles.logoLetters}>EC</Text>
+            <View style={styles.logoBars}>
+              <View style={[styles.logoBar, styles.logoBarSmall]} />
+              <View style={[styles.logoBar, styles.logoBarMedium]} />
+              <View style={[styles.logoBar, styles.logoBarTall]} />
+            </View>
+          </View>
+        </View>
         <Text style={styles.brand}>EVOLUA CORE</Text>
         <Text style={styles.tagline}>Treino · Nutrição · Saúde · Evolução</Text>
       </View>
@@ -71,6 +117,10 @@ export function AuthScreen({ onSubmit }: Props) {
       <View style={styles.card}>
         <Text style={styles.title}>{mode === 'register' ? 'Crie sua conta' : 'Acesse sua conta'}</Text>
         <Text style={styles.subtitle}>Seu perfil, restrições e evolução ficam vinculados à sua conta.</Text>
+
+        <View style={[styles.environmentStatus, environmentStatus === 'ready' ? styles.environmentStatusReady : styles.environmentStatusPending]}>
+          <Text style={styles.environmentStatusText}>{environmentLabel}</Text>
+        </View>
 
         <Text style={styles.label}>E-mail</Text>
         <TextInput value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} placeholder="voce@exemplo.com" placeholderTextColor="#9AA4B2" style={styles.input} />
@@ -80,7 +130,7 @@ export function AuthScreen({ onSubmit }: Props) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity disabled={!canContinue} onPress={submit} style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} activeOpacity={0.85}>
+        <TouchableOpacity disabled={!credentialsValid || loading} onPress={submit} style={[styles.primaryButton, (!credentialsValid || loading || environmentStatus !== 'ready') && styles.primaryButtonDisabled]} activeOpacity={0.85}>
           <Text style={styles.primaryButtonText}>{loading ? 'Aguarde...' : mode === 'register' ? 'Criar conta e continuar' : 'Entrar'}</Text>
         </TouchableOpacity>
 
@@ -97,7 +147,7 @@ export function AuthScreen({ onSubmit }: Props) {
         {configOpen ? (
           <View style={styles.environmentCard}>
             <Text style={styles.environmentTitle}>Servidor da homologação</Text>
-            <Text style={styles.environmentHelp}>Informe a URL completa da API. Esta configuração fica salva somente neste aparelho e pode ser alterada sem gerar um novo APK.</Text>
+            <Text style={styles.environmentHelp}>Informe a URL completa da API. O aplicativo testa a API e o banco antes de liberar cadastro/login.</Text>
             <TextInput
               value={apiUrl}
               onChangeText={setApiUrl}
@@ -109,7 +159,7 @@ export function AuthScreen({ onSubmit }: Props) {
               style={styles.input}
             />
             <TouchableOpacity disabled={configSaving} onPress={saveApiUrl} style={styles.environmentButton}>
-              <Text style={styles.environmentButtonText}>{configSaving ? 'Salvando...' : 'Salvar ambiente'}</Text>
+              <Text style={styles.environmentButtonText}>{configSaving ? 'Verificando...' : 'Salvar e testar ambiente'}</Text>
             </TouchableOpacity>
             {configMessage ? <Text style={styles.environmentMessage}>{configMessage}</Text> : null}
           </View>
@@ -121,13 +171,24 @@ export function AuthScreen({ onSubmit }: Props) {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.navy, justifyContent: 'center', padding: 24 },
-  brandArea: { alignItems: 'center', marginBottom: 28 },
-  logo: { width: 132, height: 132 },
+  brandArea: { alignItems: 'center', marginBottom: 24 },
+  logoMark: { width: 94, height: 94, borderRadius: 28, borderWidth: 3, borderColor: theme.colors.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  logoInner: { width: 76, height: 76, borderRadius: 23, backgroundColor: theme.colors.navyDark, alignItems: 'center', justifyContent: 'center' },
+  logoLetters: { color: theme.colors.white, fontSize: 27, fontWeight: '900', letterSpacing: 1 },
+  logoBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 3, height: 15 },
+  logoBar: { width: 5, borderRadius: 3, backgroundColor: theme.colors.lime },
+  logoBarSmall: { height: 6 },
+  logoBarMedium: { height: 10 },
+  logoBarTall: { height: 15 },
   brand: { color: theme.colors.white, fontSize: 28, fontWeight: '900', letterSpacing: 1.6 },
   tagline: { color: theme.colors.lime, marginTop: 8, fontSize: 12, letterSpacing: 1.1 },
   card: { backgroundColor: theme.colors.white, borderRadius: 28, padding: 22 },
   title: { color: theme.colors.navy, fontSize: 25, fontWeight: '900' },
-  subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 20 },
+  subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 12 },
+  environmentStatus: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 },
+  environmentStatusReady: { backgroundColor: '#EDF3E2' },
+  environmentStatusPending: { backgroundColor: '#FFF4D6' },
+  environmentStatusText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   label: { color: theme.colors.text, fontSize: 12, fontWeight: '800', marginBottom: 7, marginTop: 10 },
   input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: theme.colors.text, backgroundColor: '#F9FBFD' },
   error: { color: theme.colors.danger, marginTop: 12, fontSize: 12, fontWeight: '700' },
