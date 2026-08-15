@@ -42,15 +42,7 @@ export class ProfileService {
         [userId, input.displayName.trim(), birthDate, input.heightCm, input.trainingLevel, input.primaryGoal, goals],
       );
 
-      await client.query(
-        `INSERT INTO training_preferences (user_id, training_days_per_week, session_minutes)
-         VALUES ($1,$2,$3)
-         ON CONFLICT (user_id) DO UPDATE SET
-           training_days_per_week = EXCLUDED.training_days_per_week,
-           session_minutes = EXCLUDED.session_minutes,
-           updated_at = now()`,
-        [userId, input.trainingDaysPerWeek, input.sessionMinutes],
-      );
+      await this.upsertTrainingPreferences(client, userId, input);
 
       if (previousWeight == null || Math.abs(previousWeight - input.weightKg) >= 0.05) {
         await client.query(`INSERT INTO body_metrics (user_id, weight_kg) VALUES ($1,$2)`, [userId, input.weightKg]);
@@ -64,12 +56,75 @@ export class ProfileService {
       await client.query(
         `INSERT INTO audit_logs (actor_user_id, action, resource_type, resource_id, metadata)
          VALUES ($1::uuid,'profile.updated','profile',$2::text,$3::jsonb)`,
-        [userId, userId, JSON.stringify({ safety, goals })],
+        [
+          userId,
+          userId,
+          JSON.stringify({
+            safety,
+            goals,
+            trainingEnvironment: input.trainingEnvironment ?? 'misto',
+            availableDays: input.availableDays ?? [],
+            musicEnabled: input.musicEnabled ?? true,
+          }),
+        ],
       );
     });
 
     const user = await this.auth.me(userId);
     return { saved: true, profile: user.profile };
+  }
+
+  private async upsertTrainingPreferences(client: PoolClient, userId: string, input: OnboardingDto) {
+    await client.query(
+      `INSERT INTO training_preferences (
+         user_id, training_days_per_week, session_minutes, training_environment,
+         available_days, aerobic_days, training_plan_mode, schedule_management,
+         intensity_preference, past_activity_level, exercise_variety, muscle_focus,
+         muscle_focus_mode, exercise_type_preferences, excluded_exercise_types,
+         music_enabled, music_style, music_volume
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb,$15,$16,$17,$18
+       )
+       ON CONFLICT (user_id) DO UPDATE SET
+         training_days_per_week = EXCLUDED.training_days_per_week,
+         session_minutes = EXCLUDED.session_minutes,
+         training_environment = EXCLUDED.training_environment,
+         available_days = EXCLUDED.available_days,
+         aerobic_days = EXCLUDED.aerobic_days,
+         training_plan_mode = EXCLUDED.training_plan_mode,
+         schedule_management = EXCLUDED.schedule_management,
+         intensity_preference = EXCLUDED.intensity_preference,
+         past_activity_level = EXCLUDED.past_activity_level,
+         exercise_variety = EXCLUDED.exercise_variety,
+         muscle_focus = EXCLUDED.muscle_focus,
+         muscle_focus_mode = EXCLUDED.muscle_focus_mode,
+         exercise_type_preferences = EXCLUDED.exercise_type_preferences,
+         excluded_exercise_types = EXCLUDED.excluded_exercise_types,
+         music_enabled = EXCLUDED.music_enabled,
+         music_style = EXCLUDED.music_style,
+         music_volume = EXCLUDED.music_volume,
+         updated_at = now()`,
+      [
+        userId,
+        input.trainingDaysPerWeek,
+        input.sessionMinutes,
+        input.trainingEnvironment ?? 'misto',
+        input.availableDays ?? [],
+        input.aerobicDays ?? [],
+        input.trainingPlanMode ?? 'automatico',
+        input.scheduleManagement ?? 'automatico',
+        input.intensityPreference ?? 3,
+        input.pastActivityLevel ?? 2,
+        input.exerciseVariety ?? 2,
+        input.muscleFocus ?? [],
+        input.muscleFocusMode ?? 'equilibrado',
+        JSON.stringify(input.exerciseTypePreferences ?? {}),
+        input.excludedExerciseTypes ?? [],
+        input.musicEnabled ?? true,
+        input.musicStyle ?? 'gym_mix',
+        input.musicVolume ?? 55,
+      ],
+    );
   }
 
   private normalizeGoals(input: OnboardingDto) {
