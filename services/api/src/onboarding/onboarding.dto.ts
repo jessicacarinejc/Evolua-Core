@@ -1,5 +1,6 @@
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsIn,
   IsInt,
@@ -10,6 +11,36 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+export const GOAL_VALUES = [
+  'emagrecimento',
+  'hipertrofia',
+  'forca',
+  'condicionamento',
+  'manutencao',
+  'recomposicao_corporal',
+  'tonificacao',
+  'resistencia_muscular',
+  'potencia',
+  'cross_training',
+  'calistenia',
+  'corrida',
+  'triathlon',
+  'mobilidade',
+  'flexibilidade',
+  'postura_core',
+  'yoga',
+  'pilates',
+  'futebol',
+  'basquete',
+  'volei',
+  'tenis',
+  'artes_marciais',
+  'prontidao_tatica',
+  'saude_bem_estar',
+  'longevidade',
+  'recuperacao_ativa',
+] as const;
 
 export class OnboardingDto {
   @IsString()
@@ -30,8 +61,15 @@ export class OnboardingDto {
   @Max(350)
   weightKg!: number;
 
-  @IsIn(['emagrecimento', 'hipertrofia', 'forca', 'condicionamento', 'manutencao'])
+  @IsIn(GOAL_VALUES)
   primaryGoal!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  @IsIn(GOAL_VALUES, { each: true })
+  goals?: string[];
 
   @IsIn(['iniciante', 'intermediario', 'avancado'])
   trainingLevel!: string;
