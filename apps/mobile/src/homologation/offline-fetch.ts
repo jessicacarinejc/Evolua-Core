@@ -11,27 +11,24 @@ function response(status: number, payload: unknown): Response {
     ok: status >= 200 && status < 300,
     status,
     statusText: status >= 200 && status < 300 ? 'OK' : 'Offline Error',
-    headers: new Headers({ 'Content-Type': 'application/json' }),
-    url: OFFLINE_BASE_URL,
-    redirected: false,
-    type: 'basic',
-    body: null,
-    bodyUsed: false,
-    clone() { return response(status, payload); },
     async json() { return payload; },
     async text() { return body; },
-    async arrayBuffer() { return new TextEncoder().encode(body).buffer; },
-    async blob() { return new Blob([body], { type: 'application/json' }); },
-    async formData() { throw new Error('formData não suportado no modo offline.'); },
-    bytes: async () => new TextEncoder().encode(body),
-  } as Response;
+  } as unknown as Response;
+}
+
+function readAuthorization(headers?: HeadersInit) {
+  if (!headers) return undefined;
+  if (headers instanceof Headers) return headers.get('Authorization') ?? headers.get('authorization') ?? undefined;
+  if (Array.isArray(headers)) {
+    const pair = headers.find(([key]) => key.toLowerCase() === 'authorization');
+    return pair?.[1];
+  }
+  const record = headers as Record<string, string>;
+  return record.Authorization ?? record.authorization;
 }
 
 function extractToken(headers?: HeadersInit) {
-  if (!headers) return undefined;
-  const normalized = new Headers(headers);
-  const authorization = normalized.get('Authorization') ?? normalized.get('authorization');
-  return authorization?.replace(/^Bearer\s+/i, '') || undefined;
+  return readAuthorization(headers)?.replace(/^Bearer\s+/i, '') || undefined;
 }
 
 export function installOfflineFetchInterceptor() {
