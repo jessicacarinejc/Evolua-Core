@@ -45,7 +45,7 @@ export function WorkoutSessionControls({ token, sessionId, onAbandoned }: Props)
 
   return (
     <>
-      <WorkoutMusicPlayer />
+      <WorkoutMusicPlayer token={token} />
       <View style={styles.card}>
         <View style={styles.textWrap}>
           <Text style={styles.eyebrow}>VOCÊ TEM CONTROLE DA SESSÃO</Text>
