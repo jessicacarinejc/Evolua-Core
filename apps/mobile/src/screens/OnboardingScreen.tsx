@@ -52,9 +52,10 @@ export function OnboardingScreen({ onFinish }: Props) {
   const [data, setData] = useState<OnboardingData>(initialOnboardingData);
   const step = steps[stepIndex];
   const progress = ((stepIndex + 1) / steps.length) * 100;
+  const storedGoals = data.goals ?? [];
 
-  const selectedGoals = data.goals.length > 0
-    ? data.goals
+  const selectedGoals = storedGoals.length > 0
+    ? storedGoals
     : data.primaryGoal
       ? [data.primaryGoal]
       : [];
@@ -67,8 +68,9 @@ export function OnboardingScreen({ onFinish }: Props) {
 
   const selectGoal = (goal: PrimaryGoal) => {
     setData((current) => {
-      const currentGoals = current.goals.length > 0
-        ? current.goals
+      const explicitGoals = current.goals ?? [];
+      const currentGoals = explicitGoals.length > 0
+        ? explicitGoals
         : current.primaryGoal
           ? [current.primaryGoal]
           : [];
