@@ -90,7 +90,7 @@ export type ExerciseTypeKey =
   | 'flexibilidade'
   | 'yoga'
   | 'calistenia'
-  | 'circuito_hiIT';
+  | 'circuito_hiit';
 
 export const weekdayOptions: Array<{ value: WeekdayCode; label: string }> = [
   { value: 'seg', label: 'Seg' },
@@ -112,7 +112,7 @@ export const exerciseTypeOptions: Array<{ value: ExerciseTypeKey; label: string 
   { value: 'flexibilidade', label: 'Flexibilidade' },
   { value: 'yoga', label: 'Yoga' },
   { value: 'calistenia', label: 'Calistenia' },
-  { value: 'circuito_hiIT', label: 'Circuito / HIIT' },
+  { value: 'circuito_hiit', label: 'Circuito / HIIT' },
 ];
 
 export const equipmentGroups: Array<{ title: string; items: string[] }> = [
@@ -165,16 +165,7 @@ export const muscleOptions = [
   'Panturrilhas',
 ];
 
-export type OnboardingData = {
-  displayName: string;
-  birthDate: string;
-  heightCm: string;
-  weightKg: string;
-  primaryGoal: PrimaryGoal | '';
-  goals?: PrimaryGoal[];
-  trainingLevel: TrainingLevel | '';
-  trainingDaysPerWeek: number;
-  sessionMinutes: number;
+export type AdvancedTrainingPreferences = {
   trainingEnvironment: TrainingEnvironment;
   availableDays: WeekdayCode[];
   aerobicDays: WeekdayCode[];
@@ -190,13 +181,27 @@ export type OnboardingData = {
   musicEnabled: boolean;
   musicStyle: MusicStyle;
   musicVolume: number;
+};
+
+export type OnboardingData = {
+  displayName: string;
+  birthDate: string;
+  heightCm: string;
+  weightKg: string;
+  primaryGoal: PrimaryGoal | '';
+  goals?: PrimaryGoal[];
+  trainingLevel: TrainingLevel | '';
+  trainingDaysPerWeek: number;
+  sessionMinutes: number;
   equipment: string[];
   healthConditions: string[];
   painAreas: string[];
   foodRestrictions: string[];
-};
+} & Partial<AdvancedTrainingPreferences>;
 
-export const initialOnboardingData: OnboardingData = {
+export type CompleteOnboardingData = OnboardingData & AdvancedTrainingPreferences;
+
+export const initialOnboardingData: CompleteOnboardingData = {
   displayName: '',
   birthDate: '',
   heightCm: '',
