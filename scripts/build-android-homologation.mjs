@@ -9,25 +9,26 @@ const mobileDir = join(root, 'apps', 'mobile');
 const appConfig = JSON.parse(readFileSync(join(mobileDir, 'app.json'), 'utf8'));
 const version = appConfig.expo?.version ?? '0.0.0';
 const versionCode = appConfig.expo?.android?.versionCode ?? 0;
-const apiUrlRaw = process.env.EXPO_PUBLIC_API_URL;
+const offlineHomologation = process.env.EXPO_PUBLIC_HOMOLOGATION_OFFLINE === '1';
+const apiUrlRaw = offlineHomologation ? 'http://offline.evolua.local/v1' : process.env.EXPO_PUBLIC_API_URL;
 
 if (!apiUrlRaw) {
-  throw new Error('Defina EXPO_PUBLIC_API_URL com o endereço da API acessível pelo aparelho na rede local.');
+  throw new Error('Defina EXPO_PUBLIC_API_URL para o build conectado ou ative EXPO_PUBLIC_HOMOLOGATION_OFFLINE=1.');
 }
 
 let apiUrl;
 try {
   apiUrl = new URL(apiUrlRaw);
 } catch {
-  throw new Error('EXPO_PUBLIC_API_URL inválida. Use uma URL completa, por exemplo http://192.168.1.10:3333/v1.');
+  throw new Error('EXPO_PUBLIC_API_URL inválida. Use uma URL completa iniciando por http:// ou https://.');
 }
 
 if (!['http:', 'https:'].includes(apiUrl.protocol)) {
   throw new Error('EXPO_PUBLIC_API_URL deve usar http:// ou https://.');
 }
 
-if (new Set(['localhost', '127.0.0.1', '10.0.2.2', '::1']).has(apiUrl.hostname)) {
-  throw new Error(`${apiUrl.hostname} não é válido para homologação em aparelho físico. Use o IP da máquina na rede local.`);
+if (!offlineHomologation && new Set(['localhost', '127.0.0.1', '10.0.2.2', '::1']).has(apiUrl.hostname)) {
+  throw new Error(`${apiUrl.hostname} não é válido para homologação em aparelho físico.`);
 }
 
 function run(command, args, cwd, capture = false) {
@@ -65,13 +66,13 @@ function ensureLocalReleaseSigning(androidDir) {
   if (!/signingConfig\s+signingConfigs\.debug/.test(releaseBlock)) {
     throw new Error(
       'O projeto Android gerado não está configurado para assinar o release com a chave local de desenvolvimento. ' +
-        'Para homologação física local, o APK release precisa ser instalável, mas não deve usar chave de loja.',
+        'O APK de homologação precisa ser instalável, mas não deve usar chave de loja.',
     );
   }
 }
 
 function enableLocalHttpWhenNeeded(androidDir) {
-  if (apiUrl.protocol !== 'http:') return false;
+  if (offlineHomologation || apiUrl.protocol !== 'http:') return false;
   const manifestPath = join(androidDir, 'app', 'src', 'main', 'AndroidManifest.xml');
   let manifest = readFileSync(manifestPath, 'utf8');
   if (!/android:usesCleartextTraffic=/.test(manifest)) {
@@ -79,14 +80,15 @@ function enableLocalHttpWhenNeeded(androidDir) {
     writeFileSync(manifestPath, manifest);
   }
   if (!/android:usesCleartextTraffic="true"/.test(readFileSync(manifestPath, 'utf8'))) {
-    throw new Error('Não foi possível habilitar HTTP local no AndroidManifest para a API de homologação.');
+    throw new Error('Não foi possível habilitar HTTP no AndroidManifest para a API configurada.');
   }
   return true;
 }
 
 console.log(`[Evolua Core] versão ${version} (Android ${versionCode})`);
-console.log(`[Evolua Core] API: ${apiUrl.toString()}`);
-console.log('[Evolua Core] Gerando projeto Android nativo localmente...');
+console.log(`[Evolua Core] modo: ${offlineHomologation ? 'homologação móvel offline' : 'homologação conectada'}`);
+if (!offlineHomologation) console.log(`[Evolua Core] API: ${apiUrl.toString()}`);
+console.log('[Evolua Core] Gerando projeto Android nativo...');
 run('npx', ['expo', 'prebuild', '--clean', '--platform', 'android'], mobileDir);
 
 const androidDir = join(mobileDir, 'android');
@@ -94,7 +96,7 @@ ensureLocalReleaseSigning(androidDir);
 const cleartextEnabled = enableLocalHttpWhenNeeded(androidDir);
 
 const gradle = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
-console.log('[Evolua Core] Compilando APK release local de homologação...');
+console.log('[Evolua Core] Compilando APK release de homologação...');
 run(gradle, ['assembleRelease'], androidDir);
 
 const candidates = [
@@ -111,7 +113,7 @@ if (sourceApk.endsWith('-unsigned.apk')) {
 
 const apkSigner = findApkSigner();
 if (!apkSigner) {
-  throw new Error('Não encontrei apksigner no Android SDK. Instale Android SDK Build-Tools antes de gerar o APK de homologação.');
+  throw new Error('Não encontrei apksigner no Android SDK do runner.');
 }
 
 console.log('[Evolua Core] Verificando assinatura e integridade do APK...');
@@ -126,10 +128,12 @@ copyFileSync(sourceApk, targetApk);
 
 const metadata = {
   application: 'Evolua Core',
-  channel: 'homologacao-local',
+  channel: 'homologacao-mobile',
+  mode: offlineHomologation ? 'offline-device' : 'connected',
   version,
   versionCode,
-  apiUrl: apiUrl.toString(),
+  apiUrl: offlineHomologation ? null : apiUrl.toString(),
+  externalRuntimeRequired: !offlineHomologation,
   localHttpCleartextEnabled: cleartextEnabled,
   signing: {
     purpose: 'homologacao-local',
@@ -147,4 +151,4 @@ writeFileSync(join(distDir, `evolua-core-${version}-b${versionCode}-homologacao.
 console.log(`[Evolua Core] APK gerado: ${targetApk}`);
 console.log(`[Evolua Core] SHA-256: ${metadata.sha256}`);
 if (certSha256) console.log(`[Evolua Core] Certificado local SHA-256: ${certSha256}`);
-console.log('[Evolua Core] Artefato destinado exclusivamente à homologação local; não usar para publicação em loja.');
+console.log('[Evolua Core] Artefato destinado exclusivamente à homologação no aparelho; não usar para publicação em loja.');

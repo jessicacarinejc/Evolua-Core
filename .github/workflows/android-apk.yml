@@ -32,9 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # URL apenas para permitir a compilação enquanto o endpoint de homologação
-      # passa a ser configurável em runtime. Não representa ambiente externo.
-      EXPO_PUBLIC_API_URL: http://192.0.2.1:3333/v1
+      EXPO_PUBLIC_HOMOLOGATION_OFFLINE: '1'
+      EXPO_PUBLIC_API_URL: http://offline.evolua.local/v1
 
     steps:
       - name: Checkout
@@ -59,7 +58,9 @@ jobs:
         run: npm --workspace @evolua/mobile run typecheck
 
       - name: Preparar ambiente temporário de build
-        run: printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" > .env.homologation
+        run: |
+          printf 'EXPO_PUBLIC_HOMOLOGATION_OFFLINE=1\n' > .env.homologation
+          printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" >> .env.homologation
 
       - name: Reparar PNG do branding para prebuild
         run: |
