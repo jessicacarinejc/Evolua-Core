@@ -76,6 +76,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   const [plan, setPlan] = useState<WorkoutPlan | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  const [lastExercises, setLastExercises] = useState<WorkoutSession['exercises']>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [generatingTaiChi, setGeneratingTaiChi] = useState<TaiChiRoutine | null>(null);
@@ -107,6 +108,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     if (!token) return;
     setGenerating(true);
     setSummary(null);
+    setLastExercises([]);
     try {
       setPlan(await api.generateTodayWorkout(token));
     } catch (cause) {
@@ -124,6 +126,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     if (!token) return;
     setGeneratingTaiChi(routine);
     setSummary(null);
+    setLastExercises([]);
     try {
       setPlan(await api.generateTaiChiWorkout(token, routine));
     } catch (cause) {
@@ -141,6 +144,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     if (!token) return;
     setGeneratingCalisthenics(true);
     setSummary(null);
+    setLastExercises([]);
     try {
       setPlan(await api.generateCalisthenicsCircuit(token));
     } catch (cause) {
@@ -167,6 +171,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
   };
 
   const handleFinished = (result: WorkoutSummary) => {
+    setLastExercises(session?.exercises ?? []);
     setSummary(result);
     setSession(null);
     setPlan(null);
@@ -210,12 +215,20 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         {token ? <WeeklyWorkoutCard token={token} /> : null}
 
         {summary ? (
-          <View style={styles.summaryCard}>
-            <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>blocos</Text></View>
-            <View><Text style={styles.summaryValue}>{summary.durationMinutes} min</Text><Text style={styles.summaryLabel}>duração</Text></View>
-            <View><Text style={styles.summaryValue}>{summary.totalVolumeKg.toFixed(1)} kg</Text><Text style={styles.summaryLabel}>volume</Text></View>
-            <View><Text style={styles.summaryValue}>RPE {summary.perceivedEffort ?? '—'}</Text><Text style={styles.summaryLabel}>esforço</Text></View>
-          </View>
+          <>
+            <View style={styles.summaryCard}>
+              <View><Text style={styles.summaryValue}>{summary.completedSets}</Text><Text style={styles.summaryLabel}>blocos</Text></View>
+              <View><Text style={styles.summaryValue}>{summary.durationMinutes} min</Text><Text style={styles.summaryLabel}>duração</Text></View>
+              <View><Text style={styles.summaryValue}>{summary.totalVolumeKg.toFixed(1)} kg</Text><Text style={styles.summaryLabel}>volume</Text></View>
+              <View><Text style={styles.summaryValue}>RPE {summary.perceivedEffort ?? '—'}</Text><Text style={styles.summaryLabel}>esforço</Text></View>
+            </View>
+            {lastExercises.length > 0 ? (
+              <>
+                <Text style={styles.summarySectionTitle}>Músculos mais trabalhados</Text>
+                <WorkoutImpactCard exercises={lastExercises} compact />
+              </>
+            ) : null}
+          </>
         ) : (
           <View style={styles.infoCard}>
             <Text style={styles.infoTitle}>Antes de gerar</Text>
@@ -413,6 +426,7 @@ const styles = StyleSheet.create({
   taiChiButton: { backgroundColor: '#23436D', borderRadius: 14, paddingVertical: 13, alignItems: 'center', marginTop: 14 },
   taiChiButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 13 },
   summaryCard: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 18 },
+  summarySectionTitle: { color: theme.colors.navy, fontSize: 17, fontWeight: '900', marginBottom: 10 },
   summaryValue: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
   summaryLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
