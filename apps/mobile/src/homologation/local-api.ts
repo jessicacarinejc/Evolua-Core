@@ -148,7 +148,7 @@ function makeTaiChiPlan(state: LocalHomologationState, routine: string) {
     'chen-20': { minutes: 20, label: 'Chen · força isométrica', names: ['Postura do Arco', 'Empurrar controlado', 'Sustentação isométrica', 'Retorno consciente'] },
     'yang-25-30': { minutes: 28, label: 'Yang · fluidez', names: ['Aparar a Cauda do Pássaro', 'Mãos como Nuvens', 'Movimentos circulares', 'Fechamento'] },
   };
-  const config = configs[routine] ?? configs['15-min'];
+  const config = (configs[routine] ?? configs['15-min'])!;
   return {
     id: id('tai-chi'), goal: 'mobilidade_e_equilibrio', estimatedMinutes: config.minutes,
     safety: { split: config.label, routine: `tai_chi_${routine}`, recoveryScore: recovery.recoveryScore, allowedIntensity: 'leve', blockedPatterns: blockedPatterns(state), notes: recovery.notes },
