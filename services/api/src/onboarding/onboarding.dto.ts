@@ -55,7 +55,7 @@ export const EXERCISE_TYPE_VALUES = [
   'flexibilidade',
   'yoga',
   'calistenia',
-  'circuito_hiIT',
+  'circuito_hiit',
 ];
 
 export class OnboardingDto {
