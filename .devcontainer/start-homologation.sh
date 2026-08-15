@@ -58,30 +58,9 @@ fi
 
 for attempt in $(seq 1 30); do
   if curl --silent --fail http://127.0.0.1:3333/v1/health/ready >/dev/null 2>&1; then
-    echo "Evolua Core homologação pronta na porta 3333."
-
-    if [ -n "${CODESPACE_NAME:-}" ]; then
-      PUBLIC_API_URL="https://${CODESPACE_NAME}-3333.app.github.dev/v1"
-
-      if command -v gh >/dev/null 2>&1; then
-        for visibility_attempt in $(seq 1 8); do
-          if gh codespace ports visibility 3333:public -c "$CODESPACE_NAME" >/dev/null 2>&1; then
-            echo "Porta 3333 publicada para homologação no aparelho."
-            break
-          fi
-          if [ "$visibility_attempt" -eq 8 ]; then
-            echo "Aviso: não foi possível tornar a porta 3333 pública automaticamente." >&2
-            echo "Abra a guia PORTS/PORTAS do Codespace e altere a visibilidade da porta 3333 para Public." >&2
-          fi
-          sleep 2
-        done
-      fi
-
-      echo "URL DA API PARA O APLICATIVO: ${PUBLIC_API_URL}"
-      printf '%s\n' "$PUBLIC_API_URL" > /tmp/evolua-core-public-api-url.txt
-    else
-      echo "Ambiente fora do Codespaces: use a URL de rede apropriada e acrescente /v1."
-    fi
+    echo "Evolua Core homologação pronta apenas no ambiente privado do Codespace, porta 3333."
+    echo "A porta NÃO será publicada automaticamente."
+    echo "Para homologação móvel atual, use o APK offline; este ambiente serve somente a desenvolvimento interno."
     exit 0
   fi
   sleep 2
