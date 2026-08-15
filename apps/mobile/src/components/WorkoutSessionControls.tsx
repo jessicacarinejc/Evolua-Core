@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { theme } from '../theme';
 import { abandonWorkoutSession, WorkoutAbandonReason } from '../workouts/workout-lifecycle';
+import { WorkoutMusicPlayer } from './WorkoutMusicPlayer';
 
 type Props = {
   token: string;
@@ -43,33 +44,36 @@ export function WorkoutSessionControls({ token, sessionId, onAbandoned }: Props)
   };
 
   return (
-    <View style={styles.card}>
-      <View style={styles.textWrap}>
-        <Text style={styles.eyebrow}>VOCÊ TEM CONTROLE DA SESSÃO</Text>
-        <Text style={styles.title}>Não quer continuar este treino?</Text>
-        <Text style={styles.text}>Você pode trocar o plano ou encerrar sem concluir. Nada será registrado como treino concluído por engano.</Text>
+    <>
+      <WorkoutMusicPlayer />
+      <View style={styles.card}>
+        <View style={styles.textWrap}>
+          <Text style={styles.eyebrow}>VOCÊ TEM CONTROLE DA SESSÃO</Text>
+          <Text style={styles.title}>Não quer continuar este treino?</Text>
+          <Text style={styles.text}>Você pode trocar o plano ou encerrar sem concluir. Nada será registrado como treino concluído por engano.</Text>
+        </View>
+        <View style={styles.actions}>
+          <TouchableOpacity
+            disabled={busy != null}
+            onPress={() => confirm('switch_workout')}
+            style={styles.switchButton}
+          >
+            {busy === 'switch_workout'
+              ? <ActivityIndicator color={theme.colors.navyDark} />
+              : <Text style={styles.switchText}>Trocar de treino</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            disabled={busy != null}
+            onPress={() => confirm('stop_without_completion')}
+            style={styles.stopButton}
+          >
+            {busy === 'stop_without_completion'
+              ? <ActivityIndicator color={theme.colors.white} />
+              : <Text style={styles.stopText}>Encerrar sem concluir</Text>}
+          </TouchableOpacity>
+        </View>
       </View>
-      <View style={styles.actions}>
-        <TouchableOpacity
-          disabled={busy != null}
-          onPress={() => confirm('switch_workout')}
-          style={styles.switchButton}
-        >
-          {busy === 'switch_workout'
-            ? <ActivityIndicator color={theme.colors.navyDark} />
-            : <Text style={styles.switchText}>Trocar de treino</Text>}
-        </TouchableOpacity>
-        <TouchableOpacity
-          disabled={busy != null}
-          onPress={() => confirm('stop_without_completion')}
-          style={styles.stopButton}
-        >
-          {busy === 'stop_without_completion'
-            ? <ActivityIndicator color={theme.colors.white} />
-            : <Text style={styles.stopText}>Encerrar sem concluir</Text>}
-        </TouchableOpacity>
-      </View>
-    </View>
+    </>
   );
 }
 
