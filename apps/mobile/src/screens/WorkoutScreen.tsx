@@ -12,6 +12,8 @@ import { api, TaiChiRoutine, WorkoutPlan, WorkoutSession, WorkoutSummary } from 
 import { theme } from '../theme';
 import { ExerciseGuidancePreview } from '../components/ExerciseGuidancePreview';
 import { WeeklyWorkoutCard } from '../components/WeeklyWorkoutCard';
+import { WorkoutImpactCard } from '../components/WorkoutImpactCard';
+import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
 type Props = {
@@ -293,6 +295,9 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
           <Text style={styles.guidedHeroBody}>Todos os exercícios abaixo têm demonstração em 4 fases, respiração, dica para iniciante e erros a evitar. Você pode abrir cada guia antes ou durante o treino.</Text>
         </View>
       </View>
+
+      <WorkoutPhaseStrip exercises={plan.exercises} />
+      <WorkoutImpactCard exercises={plan.exercises} />
 
       {token ? <WeeklyWorkoutCard token={token} /> : null}
 
