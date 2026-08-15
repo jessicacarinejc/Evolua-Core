@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -100,15 +101,8 @@ export function AuthScreen({ onSubmit }: Props) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
       <View style={styles.brandArea}>
-        <View style={styles.logoMark} accessibilityLabel="Evolua Core">
-          <View style={styles.logoInner}>
-            <Text style={styles.logoLetters}>EC</Text>
-            <View style={styles.logoBars}>
-              <View style={[styles.logoBar, styles.logoBarSmall]} />
-              <View style={[styles.logoBar, styles.logoBarMedium]} />
-              <View style={[styles.logoBar, styles.logoBarTall]} />
-            </View>
-          </View>
+        <View style={styles.logoFrame} accessibilityLabel="Evolua Core">
+          <Image source={require('../../assets/brand/icon.png')} style={styles.logo} resizeMode="contain" />
         </View>
         <Text style={styles.brand}>EVOLUA CORE</Text>
         <Text style={styles.tagline}>Treino · Nutrição · Saúde · Evolução</Text>
@@ -172,14 +166,8 @@ export function AuthScreen({ onSubmit }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.navy, justifyContent: 'center', padding: 24 },
   brandArea: { alignItems: 'center', marginBottom: 24 },
-  logoMark: { width: 94, height: 94, borderRadius: 28, borderWidth: 3, borderColor: theme.colors.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  logoInner: { width: 76, height: 76, borderRadius: 23, backgroundColor: theme.colors.navyDark, alignItems: 'center', justifyContent: 'center' },
-  logoLetters: { color: theme.colors.white, fontSize: 27, fontWeight: '900', letterSpacing: 1 },
-  logoBars: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, marginTop: 3, height: 15 },
-  logoBar: { width: 5, borderRadius: 3, backgroundColor: theme.colors.lime },
-  logoBarSmall: { height: 6 },
-  logoBarMedium: { height: 10 },
-  logoBarTall: { height: 15 },
+  logoFrame: { width: 112, height: 112, borderRadius: 24, backgroundColor: theme.colors.white, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginBottom: 12 },
+  logo: { width: 106, height: 106 },
   brand: { color: theme.colors.white, fontSize: 28, fontWeight: '900', letterSpacing: 1.6 },
   tagline: { color: theme.colors.lime, marginTop: 8, fontSize: 12, letterSpacing: 1.1 },
   card: { backgroundColor: theme.colors.white, borderRadius: 28, padding: 22 },
