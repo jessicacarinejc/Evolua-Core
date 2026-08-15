@@ -50,7 +50,11 @@ function GuidedMotion({ title }: { title: string }) {
   const [playing, setPlaying] = useState(true);
   const opacity = useRef(new Animated.Value(1)).current;
   const translate = useRef(new Animated.Value(0)).current;
-  const phase = guidance.phases[phaseIndex];
+  const phase = guidance.phases[phaseIndex] ?? guidance.phases[0] ?? {
+    title: 'Posição inicial',
+    cue: 'Posicione-se com estabilidade e execute o movimento de forma controlada.',
+    breathing: 'Respire naturalmente e evite prender a respiração.',
+  };
 
   useEffect(() => {
     if (!playing) return;
