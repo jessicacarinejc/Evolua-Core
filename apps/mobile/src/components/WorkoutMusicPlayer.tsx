@@ -19,14 +19,20 @@ const tracks = [
     artist: 'Monplaisir',
     url: 'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/WFMU/Monplaisir/Sentimental/Monplaisir_-_03_-_Dance_of_the_electronic_fairies.mp3',
   },
-];
+] as const;
+
+const fallbackTrack = {
+  title: 'Evolua Core Gym Mix',
+  artist: 'Playlist de treino',
+  url: '',
+};
 
 export function WorkoutMusicPlayer() {
   const playlist = useAudioPlaylist({ sources: tracks.map((track) => track.url), loop: 'all' });
   const status = useAudioPlaylistStatus(playlist);
   const [enabled, setEnabled] = useState(true);
   const [volume, setVolume] = useState(0.55);
-  const current = tracks[status.currentIndex] ?? tracks[0];
+  const current = tracks[status.currentIndex] ?? tracks[0] ?? fallbackTrack;
 
   useEffect(() => {
     void setAudioModeAsync({ playsInSilentMode: true });
