@@ -1,8 +1,9 @@
 import { ArrayMaxSize, IsArray, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { GOAL_VALUES } from '../onboarding/onboarding.dto';
 
 export class GenerateWorkoutDto {
-  @IsIn(['emagrecimento', 'hipertrofia', 'forca', 'condicionamento', 'manutencao'])
-  goal!: 'emagrecimento' | 'hipertrofia' | 'forca' | 'condicionamento' | 'manutencao';
+  @IsIn(GOAL_VALUES)
+  goal!: string;
 
   @IsInt()
   @Min(15)
