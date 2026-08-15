@@ -73,6 +73,97 @@ export const goalOptions: Array<{ value: PrimaryGoal; label: string; category: G
 ];
 
 export type TrainingLevel = 'iniciante' | 'intermediario' | 'avancado';
+export type TrainingEnvironment = 'academia' | 'casa' | 'misto';
+export type TrainingPlanMode = 'automatico' | 'hibrido' | 'manual';
+export type ScheduleManagement = 'automatico' | 'manual';
+export type MuscleFocusMode = 'equilibrado' | 'foco_corpo_todo' | 'somente_selecionados';
+export type ExercisePreferenceLevel = 'evitar' | 'neutro' | 'preferir' | 'adorar';
+export type MusicStyle = 'gym_mix' | 'eletronica' | 'pop_treino' | 'hip_hop' | 'rock' | 'sem_preferencia';
+export type WeekdayCode = 'seg' | 'ter' | 'qua' | 'qui' | 'sex' | 'sab' | 'dom';
+export type ExerciseTypeKey =
+  | 'pesos_livres'
+  | 'peso_corporal_funcional'
+  | 'maquinas'
+  | 'cabos_polias'
+  | 'aerobico'
+  | 'mobilidade'
+  | 'flexibilidade'
+  | 'yoga'
+  | 'calistenia'
+  | 'circuito_hiIT';
+
+export const weekdayOptions: Array<{ value: WeekdayCode; label: string }> = [
+  { value: 'seg', label: 'Seg' },
+  { value: 'ter', label: 'Ter' },
+  { value: 'qua', label: 'Qua' },
+  { value: 'qui', label: 'Qui' },
+  { value: 'sex', label: 'Sex' },
+  { value: 'sab', label: 'Sáb' },
+  { value: 'dom', label: 'Dom' },
+];
+
+export const exerciseTypeOptions: Array<{ value: ExerciseTypeKey; label: string }> = [
+  { value: 'pesos_livres', label: 'Pesos livres' },
+  { value: 'peso_corporal_funcional', label: 'Peso corporal / funcional' },
+  { value: 'maquinas', label: 'Máquinas' },
+  { value: 'cabos_polias', label: 'Cabos e polias' },
+  { value: 'aerobico', label: 'Aeróbicos' },
+  { value: 'mobilidade', label: 'Mobilidade' },
+  { value: 'flexibilidade', label: 'Flexibilidade' },
+  { value: 'yoga', label: 'Yoga' },
+  { value: 'calistenia', label: 'Calistenia' },
+  { value: 'circuito_hiIT', label: 'Circuito / HIIT' },
+];
+
+export const equipmentGroups: Array<{ title: string; items: string[] }> = [
+  {
+    title: 'Pesos livres',
+    items: ['Barra', 'Halteres', 'Kettlebell', 'Barra para agachamento', 'Bolas medicinais'],
+  },
+  {
+    title: 'Bancos e racks',
+    items: ['Banco plano', 'Banco inclinado', 'Banco declinado', 'Banco para glúteos', 'Rack', 'Máquina Smith', 'Landmine', 'Extensão de costas'],
+  },
+  {
+    title: 'Peso corporal e funcional',
+    items: ['Barra horizontal', 'Barras paralelas', 'Argolas', 'TRX', 'Elásticos', 'Roda abdominal', 'Bola de Pilates', 'Cordas de batalha', 'Step / plataforma'],
+  },
+  {
+    title: 'Cabos e polias',
+    items: ['Cabos / crossover', 'Polias', 'Corda sem fim'],
+  },
+  {
+    title: 'Aeróbicos',
+    items: ['Bicicleta', 'Bicicleta ergométrica', 'Esteira', 'Elíptico', 'Escada', 'Remo ergométrico', 'Piscina', 'Corda para pular'],
+  },
+  {
+    title: 'Máquinas - parte superior',
+    items: ['Supino em máquina', 'Puxada alta', 'Remada em máquina', 'Desenvolvimento em máquina', 'Rosca bíceps em máquina', 'Extensão de tríceps em máquina'],
+  },
+  {
+    title: 'Máquinas - parte inferior',
+    items: ['Leg press', 'Hack squat', 'Cadeira extensora', 'Mesa flexora', 'Cadeira adutora', 'Cadeira abdutora', 'Panturrilha em máquina', 'Glúteo em máquina'],
+  },
+  {
+    title: 'Core',
+    items: ['Máquina abdominal', 'Rotação de tronco', 'Estação de core'],
+  },
+];
+
+export const muscleOptions = [
+  'Peito',
+  'Costas',
+  'Ombros',
+  'Bíceps',
+  'Tríceps',
+  'Antebraços',
+  'Abdômen / core',
+  'Lombar',
+  'Glúteos',
+  'Quadríceps',
+  'Posteriores de coxa',
+  'Panturrilhas',
+];
 
 export type OnboardingData = {
   displayName: string;
@@ -84,6 +175,21 @@ export type OnboardingData = {
   trainingLevel: TrainingLevel | '';
   trainingDaysPerWeek: number;
   sessionMinutes: number;
+  trainingEnvironment: TrainingEnvironment;
+  availableDays: WeekdayCode[];
+  aerobicDays: WeekdayCode[];
+  trainingPlanMode: TrainingPlanMode;
+  scheduleManagement: ScheduleManagement;
+  intensityPreference: number;
+  pastActivityLevel: number;
+  exerciseVariety: number;
+  muscleFocus: string[];
+  muscleFocusMode: MuscleFocusMode;
+  exerciseTypePreferences: Partial<Record<ExerciseTypeKey, ExercisePreferenceLevel>>;
+  excludedExerciseTypes: ExerciseTypeKey[];
+  musicEnabled: boolean;
+  musicStyle: MusicStyle;
+  musicVolume: number;
   equipment: string[];
   healthConditions: string[];
   painAreas: string[];
@@ -100,6 +206,21 @@ export const initialOnboardingData: OnboardingData = {
   trainingLevel: '',
   trainingDaysPerWeek: 3,
   sessionMinutes: 45,
+  trainingEnvironment: 'misto',
+  availableDays: ['seg', 'qua', 'sex'],
+  aerobicDays: [],
+  trainingPlanMode: 'automatico',
+  scheduleManagement: 'automatico',
+  intensityPreference: 3,
+  pastActivityLevel: 2,
+  exerciseVariety: 2,
+  muscleFocus: [],
+  muscleFocusMode: 'equilibrado',
+  exerciseTypePreferences: {},
+  excludedExerciseTypes: [],
+  musicEnabled: true,
+  musicStyle: 'gym_mix',
+  musicVolume: 55,
   equipment: [],
   healthConditions: [],
   painAreas: [],
