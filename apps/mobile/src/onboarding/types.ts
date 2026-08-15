@@ -80,7 +80,7 @@ export type OnboardingData = {
   heightCm: string;
   weightKg: string;
   primaryGoal: PrimaryGoal | '';
-  goals: PrimaryGoal[];
+  goals?: PrimaryGoal[];
   trainingLevel: TrainingLevel | '';
   trainingDaysPerWeek: number;
   sessionMinutes: number;
