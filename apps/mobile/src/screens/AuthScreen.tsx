@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { getApiBaseUrl, isPlaceholderApiUrl, probeApiBaseUrl, setApiBaseUrl } from '../api/runtime-config';
+import { getApiBaseUrl, isOfflineHomologation, isPlaceholderApiUrl, probeApiBaseUrl, setApiBaseUrl } from '../api/runtime-config';
 import { theme } from '../theme';
 
 type Props = {
@@ -19,6 +19,7 @@ type Props = {
 type EnvironmentStatus = 'checking' | 'ready' | 'missing' | 'error';
 
 export function AuthScreen({ onSubmit }: Props) {
+  const offlineMode = isOfflineHomologation();
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,9 +29,14 @@ export function AuthScreen({ onSubmit }: Props) {
   const [apiUrl, setApiUrl] = useState('');
   const [configSaving, setConfigSaving] = useState(false);
   const [configMessage, setConfigMessage] = useState('');
-  const [environmentStatus, setEnvironmentStatus] = useState<EnvironmentStatus>('checking');
+  const [environmentStatus, setEnvironmentStatus] = useState<EnvironmentStatus>(offlineMode ? 'ready' : 'checking');
 
   const verifyEnvironment = async (url: string) => {
+    if (offlineMode) {
+      setEnvironmentStatus('ready');
+      setConfigMessage('Homologação offline ativa no próprio aparelho.');
+      return true;
+    }
     if (isPlaceholderApiUrl(url)) {
       setEnvironmentStatus('missing');
       setConfigMessage('A API de homologação ainda não está configurada para este aparelho.');
@@ -44,6 +50,11 @@ export function AuthScreen({ onSubmit }: Props) {
   };
 
   useEffect(() => {
+    if (offlineMode) {
+      setEnvironmentStatus('ready');
+      setConfigMessage('Homologação offline ativa no próprio aparelho.');
+      return;
+    }
     void (async () => {
       try {
         const url = await getApiBaseUrl();
@@ -54,13 +65,13 @@ export function AuthScreen({ onSubmit }: Props) {
         setConfigMessage('Configure a API de homologação antes de criar ou acessar uma conta.');
       }
     })();
-  }, []);
+  }, [offlineMode]);
 
   const credentialsValid = email.trim().includes('@') && password.length >= 8;
-  const canContinue = credentialsValid && environmentStatus === 'ready' && !loading;
+  const canContinue = credentialsValid && (offlineMode || environmentStatus === 'ready') && !loading;
 
   const submit = async () => {
-    if (environmentStatus !== 'ready') {
+    if (!offlineMode && environmentStatus !== 'ready') {
       setConfigOpen(true);
       setError('O servidor de homologação precisa estar conectado antes de continuar.');
       return;
@@ -92,11 +103,13 @@ export function AuthScreen({ onSubmit }: Props) {
     }
   };
 
-  const environmentLabel = environmentStatus === 'ready'
-    ? 'Ambiente conectado'
-    : environmentStatus === 'checking'
-      ? 'Verificando ambiente...'
-      : 'Ambiente não conectado';
+  const environmentLabel = offlineMode
+    ? 'Homologação offline no aparelho'
+    : environmentStatus === 'ready'
+      ? 'Ambiente conectado'
+      : environmentStatus === 'checking'
+        ? 'Verificando ambiente...'
+        : 'Ambiente não conectado';
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
@@ -110,7 +123,11 @@ export function AuthScreen({ onSubmit }: Props) {
 
       <View style={styles.card}>
         <Text style={styles.title}>{mode === 'register' ? 'Crie sua conta' : 'Acesse sua conta'}</Text>
-        <Text style={styles.subtitle}>Seu perfil, restrições e evolução ficam vinculados à sua conta.</Text>
+        <Text style={styles.subtitle}>
+          {offlineMode
+            ? 'Nesta homologação, sua conta, perfil e registros ficam no próprio aparelho.'
+            : 'Seu perfil, restrições e evolução ficam vinculados à sua conta.'}
+        </Text>
 
         <View style={[styles.environmentStatus, environmentStatus === 'ready' ? styles.environmentStatusReady : styles.environmentStatusPending]}>
           <Text style={styles.environmentStatusText}>{environmentLabel}</Text>
@@ -124,7 +141,7 @@ export function AuthScreen({ onSubmit }: Props) {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <TouchableOpacity disabled={!credentialsValid || loading} onPress={submit} style={[styles.primaryButton, (!credentialsValid || loading || environmentStatus !== 'ready') && styles.primaryButtonDisabled]} activeOpacity={0.85}>
+        <TouchableOpacity disabled={!canContinue} onPress={submit} style={[styles.primaryButton, !canContinue && styles.primaryButtonDisabled]} activeOpacity={0.85}>
           <Text style={styles.primaryButtonText}>{loading ? 'Aguarde...' : mode === 'register' ? 'Criar conta e continuar' : 'Entrar'}</Text>
         </TouchableOpacity>
 
@@ -134,30 +151,36 @@ export function AuthScreen({ onSubmit }: Props) {
 
         <Text style={styles.disclaimer}>A sessão é armazenada de forma segura no dispositivo. Nunca compartilhe sua senha.</Text>
 
-        <TouchableOpacity onPress={() => { setConfigMessage(''); setConfigOpen((current) => !current); }} style={styles.environmentToggle}>
-          <Text style={styles.environmentToggleText}>{configOpen ? 'Ocultar ambiente de homologação' : 'Configurar ambiente de homologação'}</Text>
-        </TouchableOpacity>
-
-        {configOpen ? (
-          <View style={styles.environmentCard}>
-            <Text style={styles.environmentTitle}>Servidor da homologação</Text>
-            <Text style={styles.environmentHelp}>Informe a URL completa da API. O aplicativo testa a API e o banco antes de liberar cadastro/login.</Text>
-            <TextInput
-              value={apiUrl}
-              onChangeText={setApiUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              placeholder="https://servidor.exemplo/v1"
-              placeholderTextColor="#9AA4B2"
-              style={styles.input}
-            />
-            <TouchableOpacity disabled={configSaving} onPress={saveApiUrl} style={styles.environmentButton}>
-              <Text style={styles.environmentButtonText}>{configSaving ? 'Verificando...' : 'Salvar e testar ambiente'}</Text>
+        {!offlineMode ? (
+          <>
+            <TouchableOpacity onPress={() => { setConfigMessage(''); setConfigOpen((current) => !current); }} style={styles.environmentToggle}>
+              <Text style={styles.environmentToggleText}>{configOpen ? 'Ocultar ambiente de homologação' : 'Configurar ambiente de homologação'}</Text>
             </TouchableOpacity>
-            {configMessage ? <Text style={styles.environmentMessage}>{configMessage}</Text> : null}
-          </View>
-        ) : null}
+
+            {configOpen ? (
+              <View style={styles.environmentCard}>
+                <Text style={styles.environmentTitle}>Servidor da homologação</Text>
+                <Text style={styles.environmentHelp}>Informe a URL completa da API. O aplicativo testa a API e o banco antes de liberar cadastro/login.</Text>
+                <TextInput
+                  value={apiUrl}
+                  onChangeText={setApiUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  placeholder="https://servidor.exemplo/v1"
+                  placeholderTextColor="#9AA4B2"
+                  style={styles.input}
+                />
+                <TouchableOpacity disabled={configSaving} onPress={saveApiUrl} style={styles.environmentButton}>
+                  <Text style={styles.environmentButtonText}>{configSaving ? 'Verificando...' : 'Salvar e testar ambiente'}</Text>
+                </TouchableOpacity>
+                {configMessage ? <Text style={styles.environmentMessage}>{configMessage}</Text> : null}
+              </View>
+            ) : null}
+          </>
+        ) : (
+          <Text style={styles.offlineNote}>Nenhuma API, porta pública ou serviço externo é necessário para testar este APK.</Text>
+        )}
       </View>
     </KeyboardAvoidingView>
   );
@@ -194,4 +217,5 @@ const styles = StyleSheet.create({
   environmentButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 12, alignItems: 'center', paddingVertical: 11, marginTop: 8 },
   environmentButtonText: { color: theme.colors.navy, fontSize: 12, fontWeight: '900' },
   environmentMessage: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 8, textAlign: 'center' },
+  offlineNote: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 12 },
 });
