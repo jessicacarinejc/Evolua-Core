@@ -11,12 +11,14 @@ import {
 } from 'react-native';
 import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } from '../api/client';
 import { ExerciseVideoPlayer } from '../components/ExerciseVideoPlayer';
+import { WorkoutSessionControls } from '../components/WorkoutSessionControls';
+import { guidanceUrl } from '../workouts/exercise-guidance';
 import { theme } from '../theme';
 
 type Props = {
   token: string;
   session: WorkoutSession;
-  onSessionChange: (session: WorkoutSession) => void;
+  onSessionChange: (session: WorkoutSession | null) => void;
   onFinished: (summary: WorkoutSummary) => void;
 };
 
@@ -308,6 +310,16 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
       </View>
 
+      <WorkoutSessionControls
+        token={token}
+        sessionId={session.id}
+        onAbandoned={() => {
+          setWorkRunning(false);
+          setRestRemaining(0);
+          onSessionChange(null);
+        }}
+      />
+
       {restRemaining > 0 ? (
         <View style={styles.restCard}>
           <Text style={styles.restLabel}>{isCircuit && restRemaining > 20 ? 'DESCANSO ENTRE ROUNDS' : 'DESCANSO'}</Text>
@@ -345,14 +357,12 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.instructions ? <Text style={styles.instructions}>{currentExercise.instructions}</Text> : null}
 
-          {currentExercise.videoUrl ? (
-            <ExerciseVideoPlayer
-              title={currentExercise.name}
-              videoUrl={currentExercise.videoUrl}
-              license={currentExercise.videoLicense}
-              attribution={currentExercise.videoAttribution}
-            />
-          ) : null}
+          <ExerciseVideoPlayer
+            title={currentExercise.name}
+            videoUrl={currentExercise.videoUrl ?? guidanceUrl(currentExercise.name)}
+            license={currentExercise.videoLicense}
+            attribution={currentExercise.videoAttribution}
+          />
 
           <View style={styles.safetyActions}>
             <TouchableOpacity onPress={() => setShowSafetyPanel((value) => !value)} style={styles.safetyActionButton}>
