@@ -533,7 +533,6 @@ export class WorkoutEngineService {
           JSON.stringify({
             split,
             recoveryScore: effectiveRecoveryScore,
-            allowedIntensity: effectiveIntensity,
             safetyAllowedIntensity: safety.allowedIntensity,
             userPreferences: {
               trainingEnvironment: profile.training_environment,
