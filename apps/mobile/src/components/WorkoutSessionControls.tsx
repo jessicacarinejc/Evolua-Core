@@ -74,7 +74,7 @@ export function WorkoutSessionControls({ token, sessionId, onAbandoned }: Props)
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#102B4F', borderRadius: 20, padding: 14, marginHorizontal: 18, marginTop: 14, marginBottom: 2 },
+  card: { backgroundColor: '#102B4F', borderRadius: 20, padding: 14, marginTop: 4, marginBottom: 16 },
   textWrap: { gap: 4 },
   eyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   title: { color: theme.colors.white, fontSize: 16, fontWeight: '900' },
