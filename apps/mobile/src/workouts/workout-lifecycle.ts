@@ -42,7 +42,6 @@ export async function abandonWorkoutSession(
       ...counts,
     });
     state.workout.activeSession = null;
-    state.workout.currentPlan = null;
     await localHomologationStore.save(state);
 
     return { abandoned: true, reason, ...counts };
