@@ -1,9 +1,16 @@
 import * as SecureStore from 'expo-secure-store';
+import { installOfflineFetchInterceptor, OFFLINE_BASE_URL } from '../homologation/offline-fetch';
 
 const API_URL_KEY = 'evolua_core_api_base_url';
-const BUILD_API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
 const OFFLINE_HOMOLOGATION = process.env.EXPO_PUBLIC_HOMOLOGATION_OFFLINE === '1';
+const BUILD_API_URL = OFFLINE_HOMOLOGATION
+  ? OFFLINE_BASE_URL
+  : process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
 const PLACEHOLDER_HOSTS = new Set(['192.0.2.1', '10.0.2.2', 'localhost', '127.0.0.1', '::1']);
+
+if (OFFLINE_HOMOLOGATION) {
+  installOfflineFetchInterceptor();
+}
 
 function normalizeApiUrl(value: string) {
   const trimmed = value.trim().replace(/\/+$/, '');
@@ -30,6 +37,7 @@ export function isOfflineHomologation() {
 }
 
 export function isPlaceholderApiUrl(value: string) {
+  if (OFFLINE_HOMOLOGATION) return false;
   try {
     const parsed = new URL(normalizeApiUrl(value));
     return PLACEHOLDER_HOSTS.has(parsed.hostname);
@@ -71,18 +79,20 @@ export async function probeApiBaseUrl(value: string, timeoutMs = 6000) {
 }
 
 export async function getApiBaseUrl() {
+  if (OFFLINE_HOMOLOGATION) return OFFLINE_BASE_URL;
   const saved = await SecureStore.getItemAsync(API_URL_KEY);
   return normalizeApiUrl(saved ?? BUILD_API_URL);
 }
 
 export async function setApiBaseUrl(value: string) {
+  if (OFFLINE_HOMOLOGATION) return OFFLINE_BASE_URL;
   const normalized = normalizeApiUrl(value);
   await SecureStore.setItemAsync(API_URL_KEY, normalized);
   return normalized;
 }
 
 export async function clearApiBaseUrl() {
-  await SecureStore.deleteItemAsync(API_URL_KEY);
+  if (!OFFLINE_HOMOLOGATION) await SecureStore.deleteItemAsync(API_URL_KEY);
 }
 
 export function getBuildApiUrl() {
