@@ -11,9 +11,8 @@ export class WorkoutAbandonmentService {
       id: string;
       workout_plan_id: string | null;
       completed_at: string | null;
-      abandoned_at: string | null;
     }>(
-      `SELECT id, workout_plan_id, completed_at, abandoned_at
+      `SELECT id, workout_plan_id, completed_at
        FROM workout_sessions
        WHERE id = $1 AND user_id = $2`,
       [sessionId, userId],
@@ -32,40 +31,36 @@ export class WorkoutAbandonmentService {
     const totalBlocks = Number(countResult.rows[0]?.total ?? 0);
     const completedBlocks = Number(countResult.rows[0]?.completed ?? 0);
 
-    if (!session.abandoned_at) {
-      await this.db.transaction(async (client) => {
+    await this.db.transaction(async (client) => {
+      if (session.workout_plan_id) {
         await client.query(
-          `UPDATE workout_sessions
-           SET abandoned_at = now(), abandon_reason = $3
-           WHERE id = $1 AND user_id = $2 AND completed_at IS NULL AND abandoned_at IS NULL`,
-          [sessionId, userId, input.reason],
+          `UPDATE workout_plans
+           SET status = 'cancelled'
+           WHERE id = $1 AND user_id = $2 AND status <> 'completed'`,
+          [session.workout_plan_id, userId],
         );
+      }
 
-        if (session.workout_plan_id) {
-          await client.query(
-            `UPDATE workout_plans
-             SET status = 'cancelled'
-             WHERE id = $1 AND user_id = $2 AND status <> 'completed'`,
-            [session.workout_plan_id, userId],
-          );
-        }
+      await client.query(
+        `INSERT INTO audit_logs (actor_user_id, action, resource_type, resource_id, metadata)
+         VALUES ($1, 'workout_session_abandoned', 'workout_session', $2, $3::jsonb)`,
+        [
+          userId,
+          sessionId,
+          JSON.stringify({
+            reason: input.reason,
+            workoutPlanId: session.workout_plan_id,
+            completedBlocks,
+            totalBlocks,
+          }),
+        ],
+      );
 
-        await client.query(
-          `INSERT INTO audit_logs (actor_user_id, action, resource_type, resource_id, metadata)
-           VALUES ($1, 'workout_session_abandoned', 'workout_session', $2, $3::jsonb)`,
-          [
-            userId,
-            sessionId,
-            JSON.stringify({
-              reason: input.reason,
-              workoutPlanId: session.workout_plan_id,
-              completedBlocks,
-              totalBlocks,
-            }),
-          ],
-        );
-      });
-    }
+      await client.query(
+        `DELETE FROM workout_sessions WHERE id = $1 AND user_id = $2 AND completed_at IS NULL`,
+        [sessionId, userId],
+      );
+    });
 
     return {
       abandoned: true,
