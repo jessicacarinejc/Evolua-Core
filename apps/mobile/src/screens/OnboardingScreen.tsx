@@ -8,12 +8,21 @@ import {
   View,
 } from 'react-native';
 import {
+  equipmentGroups,
+  ExercisePreferenceLevel,
+  ExerciseTypeKey,
+  exerciseTypeOptions,
   goalOptions,
   initialOnboardingData,
   MAX_SELECTED_GOALS,
+  muscleOptions,
+  MusicStyle,
   OnboardingData,
   PrimaryGoal,
+  TrainingEnvironment,
   TrainingLevel,
+  weekdayOptions,
+  WeekdayCode,
 } from '../onboarding/types';
 import { theme } from '../theme';
 
@@ -21,19 +30,41 @@ type Props = {
   onFinish: (data: OnboardingData) => void;
 };
 
-type Step = 'perfil' | 'objetivo' | 'treino' | 'saude' | 'nutricao';
+type Step = 'perfil' | 'objetivo' | 'treino' | 'preferencias' | 'saude' | 'nutricao';
 
-const steps: Step[] = ['perfil', 'objetivo', 'treino', 'saude', 'nutricao'];
+const steps: Step[] = ['perfil', 'objetivo', 'treino', 'preferencias', 'saude', 'nutricao'];
 const goalCategories = [...new Set(goalOptions.map((option) => option.category))];
 const levelOptions: { value: TrainingLevel; label: string }[] = [
   { value: 'iniciante', label: 'Iniciante' },
   { value: 'intermediario', label: 'Intermediário' },
   { value: 'avancado', label: 'Avançado' },
 ];
-const equipmentOptions = ['Academia completa', 'Halteres', 'Barras', 'Máquinas', 'Cabos', 'Elásticos', 'Kettlebell', 'Banco', 'TRX', 'Bicicleta', 'Esteira', 'Peso corporal'];
+const environmentOptions: Array<{ value: TrainingEnvironment; label: string }> = [
+  { value: 'academia', label: 'Academia' },
+  { value: 'casa', label: 'Casa' },
+  { value: 'misto', label: 'Academia + casa' },
+];
 const conditionOptions = ['Diabetes', 'Hipertensão', 'Doença renal', 'Gestação', 'Cardiopatia', 'Nenhuma informada'];
 const painOptions = ['Joelhos', 'Coluna lombar', 'Ombros', 'Quadril', 'Punhos', 'Tornozelos'];
-const foodOptions = ['Lactose', 'Glúten', 'Amendoim', 'Frutos do mar', 'Ovos', 'Vegetariano', 'Vegano'];
+const foodOptions = ['Lactose', 'Glúten', 'Amendoim', 'Frutos do mar', 'Ovos', 'Peixe', 'Laticínios', 'Castanhas', 'Vegetariano', 'Vegano'];
+const intensityLabels = ['Muito leve', 'Leve', 'Moderado', 'Forte', 'Intenso'];
+const activityLabels = ['Quase nada', 'Pouco', 'Regular', 'Bastante', 'Muito'];
+const varietyLabels = ['Pouca', 'Média', 'Alta'];
+const preferenceLevels: ExercisePreferenceLevel[] = ['evitar', 'neutro', 'preferir', 'adorar'];
+const preferenceLabels: Record<ExercisePreferenceLevel, string> = {
+  evitar: 'Evitar',
+  neutro: 'Neutro',
+  preferir: 'Preferir',
+  adorar: 'Adorar',
+};
+const musicStyles: Array<{ value: MusicStyle; label: string }> = [
+  { value: 'gym_mix', label: 'Gym Mix' },
+  { value: 'eletronica', label: 'Eletrônica' },
+  { value: 'pop_treino', label: 'Pop treino' },
+  { value: 'hip_hop', label: 'Hip-hop' },
+  { value: 'rock', label: 'Rock' },
+  { value: 'sem_preferencia', label: 'Variado' },
+];
 
 function Chip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
   return (
@@ -47,50 +78,85 @@ function toggle(list: string[], item: string) {
   return list.includes(item) ? list.filter((value) => value !== item) : [...list, item];
 }
 
+function toggleDay(list: WeekdayCode[], item: WeekdayCode) {
+  return list.includes(item) ? list.filter((value) => value !== item) : [...list, item];
+}
+
+function PreferenceRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: ExercisePreferenceLevel;
+  onChange: (value: ExercisePreferenceLevel) => void;
+}) {
+  return (
+    <View style={styles.preferenceRow}>
+      <Text style={styles.preferenceTitle}>{label}</Text>
+      <View style={styles.preferenceButtons}>
+        {preferenceLevels.map((level) => (
+          <TouchableOpacity
+            key={level}
+            onPress={() => onChange(level)}
+            style={[styles.preferenceButton, value === level && styles.preferenceButtonActive]}
+          >
+            <Text style={[styles.preferenceButtonText, value === level && styles.preferenceButtonTextActive]}>{preferenceLabels[level]}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function OnboardingScreen({ onFinish }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [data, setData] = useState<OnboardingData>(initialOnboardingData);
   const step = steps[stepIndex];
   const progress = ((stepIndex + 1) / steps.length) * 100;
   const storedGoals = data.goals ?? [];
-
-  const selectedGoals = storedGoals.length > 0
-    ? storedGoals
-    : data.primaryGoal
-      ? [data.primaryGoal]
-      : [];
+  const selectedGoals = storedGoals.length > 0 ? storedGoals : data.primaryGoal ? [data.primaryGoal] : [];
 
   const canAdvance = useMemo(() => {
     if (step === 'perfil') return Boolean(data.displayName && data.birthDate && data.heightCm && data.weightKg);
     if (step === 'objetivo') return Boolean(selectedGoals.length > 0 && data.primaryGoal && data.trainingLevel);
+    if (step === 'treino') return data.availableDays.length > 0;
     return true;
   }, [data, selectedGoals.length, step]);
 
   const selectGoal = (goal: PrimaryGoal) => {
     setData((current) => {
       const explicitGoals = current.goals ?? [];
-      const currentGoals = explicitGoals.length > 0
-        ? explicitGoals
-        : current.primaryGoal
-          ? [current.primaryGoal]
-          : [];
+      const currentGoals = explicitGoals.length > 0 ? explicitGoals : current.primaryGoal ? [current.primaryGoal] : [];
 
       if (currentGoals.includes(goal)) {
         const nextGoals = currentGoals.filter((item) => item !== goal);
-        const nextPrimary = current.primaryGoal === goal
-          ? (nextGoals[0] ?? '')
-          : current.primaryGoal;
+        const nextPrimary = current.primaryGoal === goal ? (nextGoals[0] ?? '') : current.primaryGoal;
         return { ...current, goals: nextGoals, primaryGoal: nextPrimary };
       }
 
       if (currentGoals.length >= MAX_SELECTED_GOALS) return current;
       const nextGoals = [...currentGoals, goal];
+      return { ...current, goals: nextGoals, primaryGoal: current.primaryGoal || goal };
+    });
+  };
+
+  const selectAvailableDay = (day: WeekdayCode) => {
+    setData((current) => {
+      const nextDays = toggleDay(current.availableDays, day);
       return {
         ...current,
-        goals: nextGoals,
-        primaryGoal: current.primaryGoal || goal,
+        availableDays: nextDays,
+        trainingDaysPerWeek: Math.max(1, nextDays.length),
       };
     });
+  };
+
+  const setExercisePreference = (type: ExerciseTypeKey, value: ExercisePreferenceLevel) => {
+    setData((current) => ({
+      ...current,
+      exerciseTypePreferences: { ...current.exerciseTypePreferences, [type]: value },
+    }));
   };
 
   const next = () => {
@@ -125,7 +191,7 @@ export function OnboardingScreen({ onFinish }: Props) {
         {step === 'objetivo' && (
           <>
             <Text style={styles.title}>Quais são seus objetivos?</Text>
-            <Text style={styles.subtitle}>Escolha de 1 a {MAX_SELECTED_GOALS} objetivos. O primeiro selecionado fica como prioridade e os demais complementam a montagem dos treinos.</Text>
+            <Text style={styles.subtitle}>Escolha de 1 a {MAX_SELECTED_GOALS} objetivos. O primeiro fica como prioridade e os demais complementam a montagem dos treinos.</Text>
             <View style={styles.selectionCounter}>
               <Text style={styles.selectionCounterText}>{selectedGoals.length}/{MAX_SELECTED_GOALS} selecionados</Text>
               {data.primaryGoal ? <Text style={styles.primaryGoalText}>Prioridade: {goalOptions.find((option) => option.value === data.primaryGoal)?.label}</Text> : null}
@@ -136,36 +202,113 @@ export function OnboardingScreen({ onFinish }: Props) {
                 <Text style={styles.goalCategory}>{category}</Text>
                 <View style={styles.chips}>
                   {goalOptions.filter((option) => option.category === category).map((option) => (
-                    <Chip
-                      key={option.value}
-                      label={option.label}
-                      active={selectedGoals.includes(option.value)}
-                      onPress={() => selectGoal(option.value)}
-                    />
+                    <Chip key={option.value} label={option.label} active={selectedGoals.includes(option.value)} onPress={() => selectGoal(option.value)} />
                   ))}
                 </View>
               </View>
             ))}
 
-            {selectedGoals.length >= MAX_SELECTED_GOALS ? (
-              <Text style={styles.limitText}>Limite de {MAX_SELECTED_GOALS} objetivos atingido. Desmarque um para escolher outro.</Text>
-            ) : null}
+            {selectedGoals.length >= MAX_SELECTED_GOALS ? <Text style={styles.limitText}>Limite de {MAX_SELECTED_GOALS} objetivos atingido. Desmarque um para escolher outro.</Text> : null}
 
-            <Text style={styles.label}>Experiência com treino</Text>
+            <Text style={styles.label}>Experiência atual com treino</Text>
             <View style={styles.chips}>{levelOptions.map((option) => <Chip key={option.value} label={option.label} active={data.trainingLevel === option.value} onPress={() => setData({ ...data, trainingLevel: option.value })} />)}</View>
           </>
         )}
 
         {step === 'treino' && (
           <>
-            <Text style={styles.title}>Sua rotina de treino</Text>
-            <Text style={styles.subtitle}>O Evolua Core adapta o plano ao tempo real que você tem disponível e aos equipamentos que realmente pode usar.</Text>
-            <Text style={styles.label}>Dias por semana</Text>
-            <View style={styles.chips}>{[2, 3, 4, 5, 6].map((days) => <Chip key={days} label={`${days} dias`} active={data.trainingDaysPerWeek === days} onPress={() => setData({ ...data, trainingDaysPerWeek: days })} />)}</View>
+            <Text style={styles.title}>Onde e quando você treina?</Text>
+            <Text style={styles.subtitle}>O plano usa sua disponibilidade real e apenas os equipamentos que você informou.</Text>
+
+            <Text style={styles.label}>Ambiente de treino</Text>
+            <View style={styles.chips}>{environmentOptions.map((option) => <Chip key={option.value} label={option.label} active={data.trainingEnvironment === option.value} onPress={() => setData({ ...data, trainingEnvironment: option.value })} />)}</View>
+
+            <Text style={styles.label}>Dias disponíveis</Text>
+            <View style={styles.chips}>{weekdayOptions.map((option) => <Chip key={option.value} label={option.label} active={data.availableDays.includes(option.value)} onPress={() => selectAvailableDay(option.value)} />)}</View>
+            <Text style={styles.helper}>{data.availableDays.length} dia(s) selecionado(s) por semana.</Text>
+
+            <Text style={styles.label}>Dias em que prefere fazer aeróbico</Text>
+            <View style={styles.chips}>{weekdayOptions.map((option) => <Chip key={option.value} label={option.label} active={data.aerobicDays.includes(option.value)} onPress={() => setData((current) => ({ ...current, aerobicDays: toggleDay(current.aerobicDays, option.value) }))} />)}</View>
+
             <Text style={styles.label}>Tempo por sessão</Text>
-            <View style={styles.chips}>{[30, 45, 60, 75, 90].map((minutes) => <Chip key={minutes} label={`${minutes} min`} active={data.sessionMinutes === minutes} onPress={() => setData({ ...data, sessionMinutes: minutes })} />)}</View>
+            <View style={styles.chips}>{[20, 30, 45, 60, 75, 90].map((minutes) => <Chip key={minutes} label={`${minutes} min`} active={data.sessionMinutes === minutes} onPress={() => setData({ ...data, sessionMinutes: minutes })} />)}</View>
+
             <Text style={styles.label}>Equipamentos disponíveis</Text>
-            <View style={styles.chips}>{equipmentOptions.map((item) => <Chip key={item} label={item} active={data.equipment.includes(item)} onPress={() => setData({ ...data, equipment: toggle(data.equipment, item) })} />)}</View>
+            <Chip label="Sem equipamento / peso corporal" active={data.equipment.includes('Peso corporal')} onPress={() => setData({ ...data, equipment: toggle(data.equipment, 'Peso corporal') })} />
+            {equipmentGroups.map((group) => (
+              <View key={group.title} style={styles.equipmentGroup}>
+                <Text style={styles.groupTitle}>{group.title}</Text>
+                <View style={styles.chips}>
+                  {group.items.map((item) => <Chip key={item} label={item} active={data.equipment.includes(item)} onPress={() => setData({ ...data, equipment: toggle(data.equipment, item) })} />)}
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+
+        {step === 'preferencias' && (
+          <>
+            <Text style={styles.title}>Como você gosta de treinar?</Text>
+            <Text style={styles.subtitle}>Essas escolhas orientam intensidade, variedade, tipos de exercício e foco muscular sem ultrapassar as regras de segurança.</Text>
+
+            <Text style={styles.label}>Quem planeja os treinos?</Text>
+            <View style={styles.chips}>
+              <Chip label="Planeje tudo para mim" active={data.trainingPlanMode === 'automatico'} onPress={() => setData({ ...data, trainingPlanMode: 'automatico' })} />
+              <Chip label="Híbrido" active={data.trainingPlanMode === 'hibrido'} onPress={() => setData({ ...data, trainingPlanMode: 'hibrido' })} />
+              <Chip label="Eu planejo" active={data.trainingPlanMode === 'manual'} onPress={() => setData({ ...data, trainingPlanMode: 'manual' })} />
+            </View>
+
+            <Text style={styles.label}>Gerenciamento do cronograma</Text>
+            <View style={styles.chips}>
+              <Chip label="O app organiza" active={data.scheduleManagement === 'automatico'} onPress={() => setData({ ...data, scheduleManagement: 'automatico' })} />
+              <Chip label="Eu organizo dias/horários" active={data.scheduleManagement === 'manual'} onPress={() => setData({ ...data, scheduleManagement: 'manual' })} />
+            </View>
+
+            <Text style={styles.label}>Intensidade desejada</Text>
+            <View style={styles.scaleRow}>{intensityLabels.map((label, index) => <Chip key={label} label={label} active={data.intensityPreference === index + 1} onPress={() => setData({ ...data, intensityPreference: index + 1 })} />)}</View>
+
+            <Text style={styles.label}>Quanto se exercitava antes?</Text>
+            <View style={styles.scaleRow}>{activityLabels.map((label, index) => <Chip key={label} label={label} active={data.pastActivityLevel === index + 1} onPress={() => setData({ ...data, pastActivityLevel: index + 1 })} />)}</View>
+
+            <Text style={styles.label}>Variedade semanal</Text>
+            <View style={styles.chips}>{varietyLabels.map((label, index) => <Chip key={label} label={label} active={data.exerciseVariety === index + 1} onPress={() => setData({ ...data, exerciseVariety: index + 1 })} />)}</View>
+
+            <Text style={styles.label}>Preferência por tipo de treino</Text>
+            {exerciseTypeOptions.map((option) => (
+              <PreferenceRow
+                key={option.value}
+                label={option.label}
+                value={data.exerciseTypePreferences[option.value] ?? 'neutro'}
+                onChange={(value) => setExercisePreference(option.value, value)}
+              />
+            ))}
+
+            <Text style={styles.label}>Tipos que não deseja fazer</Text>
+            <View style={styles.chips}>{exerciseTypeOptions.map((option) => <Chip key={option.value} label={option.label} active={data.excludedExerciseTypes.includes(option.value)} onPress={() => setData((current) => ({ ...current, excludedExerciseTypes: toggle(current.excludedExerciseTypes, option.value) as ExerciseTypeKey[] }))} />)}</View>
+
+            <Text style={styles.label}>Foco muscular</Text>
+            <View style={styles.chips}>
+              <Chip label="Corpo equilibrado" active={data.muscleFocusMode === 'equilibrado'} onPress={() => setData({ ...data, muscleFocusMode: 'equilibrado' })} />
+              <Chip label="Focar e treinar corpo todo" active={data.muscleFocusMode === 'foco_corpo_todo'} onPress={() => setData({ ...data, muscleFocusMode: 'foco_corpo_todo' })} />
+              <Chip label="Somente músculos escolhidos" active={data.muscleFocusMode === 'somente_selecionados'} onPress={() => setData({ ...data, muscleFocusMode: 'somente_selecionados' })} />
+            </View>
+            {data.muscleFocusMode !== 'equilibrado' ? (
+              <View style={[styles.chips, styles.withTopGap]}>{muscleOptions.map((item) => <Chip key={item} label={item} active={data.muscleFocus.includes(item)} onPress={() => setData({ ...data, muscleFocus: toggle(data.muscleFocus, item) })} />)}</View>
+            ) : null}
+
+            <Text style={styles.label}>Música durante o treino</Text>
+            <View style={styles.chips}>
+              <Chip label="Com música" active={data.musicEnabled} onPress={() => setData({ ...data, musicEnabled: true })} />
+              <Chip label="Sem música" active={!data.musicEnabled} onPress={() => setData({ ...data, musicEnabled: false })} />
+            </View>
+            {data.musicEnabled ? (
+              <>
+                <Text style={styles.helper}>Estilo preferido</Text>
+                <View style={styles.chips}>{musicStyles.map((option) => <Chip key={option.value} label={option.label} active={data.musicStyle === option.value} onPress={() => setData({ ...data, musicStyle: option.value })} />)}</View>
+                <Text style={styles.helper}>Volume inicial</Text>
+                <View style={styles.chips}>{[30, 55, 75, 100].map((value) => <Chip key={value} label={`${value}%`} active={data.musicVolume === value} onPress={() => setData({ ...data, musicVolume: value })} />)}</View>
+              </>
+            ) : null}
           </>
         )}
 
@@ -185,7 +328,7 @@ export function OnboardingScreen({ onFinish }: Props) {
           <>
             <Text style={styles.title}>Alimentação e restrições</Text>
             <Text style={styles.subtitle}>Alergias e restrições clínicas serão tratadas como regras de segurança, não como simples preferências.</Text>
-            <Text style={styles.label}>Restrições, alergias ou estilo alimentar</Text>
+            <Text style={styles.label}>Alimentos, alergias ou estilo alimentar</Text>
             <View style={styles.chips}>{foodOptions.map((item) => <Chip key={item} label={item} active={data.foodRestrictions.includes(item)} onPress={() => setData({ ...data, foodRestrictions: toggle(data.foodRestrictions, item) })} />)}</View>
             <View style={styles.infoCard}><Text style={styles.infoTitle}>Plano alimentar responsável</Text><Text style={styles.infoText}>Quando houver condição clínica, o app priorizará limites de segurança e poderá indicar revisão por nutricionista antes de gerar recomendações mais específicas.</Text></View>
           </>
@@ -210,14 +353,17 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 38 },
   title: { color: theme.colors.navy, fontSize: 27, fontWeight: '900' },
   subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 18 },
-  label: { color: theme.colors.text, fontWeight: '800', fontSize: 12, marginTop: 15, marginBottom: 8 },
+  label: { color: theme.colors.text, fontWeight: '800', fontSize: 12, marginTop: 17, marginBottom: 8 },
+  helper: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 7, marginBottom: 7 },
   input: { backgroundColor: theme.colors.white, borderColor: theme.colors.border, borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, color: theme.colors.text },
   row: { flexDirection: 'row', justifyContent: 'space-between' },
   half: { width: '48%' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
+  withTopGap: { marginTop: 10 },
+  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
   chip: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.white, borderRadius: 999, paddingHorizontal: 13, paddingVertical: 10 },
   chipActive: { backgroundColor: '#EEF7DE', borderColor: theme.colors.lime },
-  chipText: { color: theme.colors.textMuted, fontWeight: '700', fontSize: 12 },
+  chipText: { color: theme.colors.textMuted, fontWeight: '700', fontSize: 11 },
   chipTextActive: { color: theme.colors.navy, fontWeight: '900' },
   selectionCounter: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 12, marginBottom: 4 },
   selectionCounterText: { color: theme.colors.navy, fontWeight: '900', fontSize: 12 },
@@ -225,6 +371,15 @@ const styles = StyleSheet.create({
   goalGroup: { marginTop: 16 },
   goalCategory: { color: theme.colors.navy, fontWeight: '900', fontSize: 13, marginBottom: 9 },
   limitText: { color: theme.colors.warning, fontSize: 11, fontWeight: '700', marginTop: 12, lineHeight: 17 },
+  equipmentGroup: { marginTop: 17 },
+  groupTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 12, marginBottom: 8 },
+  preferenceRow: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 11, marginBottom: 8 },
+  preferenceTitle: { color: theme.colors.navy, fontSize: 11, fontWeight: '900', marginBottom: 8 },
+  preferenceButtons: { flexDirection: 'row' },
+  preferenceButton: { flex: 1, paddingVertical: 8, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', marginRight: -1 },
+  preferenceButtonActive: { backgroundColor: theme.colors.navy, borderColor: theme.colors.navy },
+  preferenceButtonText: { color: theme.colors.textMuted, fontSize: 8, fontWeight: '800' },
+  preferenceButtonTextActive: { color: theme.colors.white },
   warningCard: { marginTop: 22, backgroundColor: '#FFF4E5', borderRadius: 16, padding: 16 },
   warningTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },
   warningText: { color: theme.colors.textMuted, lineHeight: 19, fontSize: 12, marginTop: 5 },
