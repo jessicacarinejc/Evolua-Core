@@ -85,7 +85,7 @@ export class AuthService {
     if (!user) throw new UnauthorizedException('Usuário não encontrado.');
 
     const [profileResult, trainingResult, equipmentResult, healthResult, painResult, foodResult, weightResult] = await Promise.all([
-      this.db.query<any>(`SELECT display_name, birth_date, height_cm, training_level, primary_goal, onboarding_completed_at FROM profiles WHERE user_id = $1`, [userId]),
+      this.db.query<any>(`SELECT display_name, birth_date, height_cm, training_level, primary_goal, goals, onboarding_completed_at FROM profiles WHERE user_id = $1`, [userId]),
       this.db.query<any>(`SELECT training_days_per_week, session_minutes FROM training_preferences WHERE user_id = $1`, [userId]),
       this.db.query<{ label: string }>(`SELECT label FROM user_equipment WHERE user_id = $1 ORDER BY label`, [userId]),
       this.db.query<{ label: string }>(`SELECT label FROM health_conditions WHERE user_id = $1 ORDER BY label`, [userId]),
@@ -96,6 +96,11 @@ export class AuthService {
 
     const profile = profileResult.rows[0] ?? null;
     const training = trainingResult.rows[0] ?? null;
+    const goals = profile
+      ? (Array.isArray(profile.goals) && profile.goals.length > 0
+        ? profile.goals
+        : (profile.primary_goal ? [profile.primary_goal] : []))
+      : [];
 
     return {
       id: user.id,
@@ -107,6 +112,7 @@ export class AuthService {
         heightCm: profile.height_cm ?? '',
         weightKg: weightResult.rows[0]?.weight_kg ?? '',
         primaryGoal: profile.primary_goal ?? '',
+        goals,
         trainingLevel: profile.training_level ?? '',
         trainingDaysPerWeek: training?.training_days_per_week ?? 3,
         sessionMinutes: training?.session_minutes ?? 45,
