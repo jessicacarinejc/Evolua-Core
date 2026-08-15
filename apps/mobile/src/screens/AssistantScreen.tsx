@@ -112,7 +112,7 @@ export function AssistantScreen({ token }: { token: string | null }) {
             ]}
           >
             <Text style={styles.messageRole}>{message.role === 'user' ? 'VOCÊ' : 'EVOLUA ASSIST'}</Text>
-            <Text style={styles.messageText}>{message.text}</Text>
+            <Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : undefined]}>{message.text}</Text>
             {message.review ? <Text style={styles.reviewText}>Revisão profissional recomendada.</Text> : null}
           </View>
         ))}
@@ -131,7 +131,8 @@ export function AssistantScreen({ token }: { token: string | null }) {
           value={input}
           onChangeText={setInput}
           placeholder="Pergunte sobre treino, alimentação, recuperação ou seus registros"
-          placeholderTextColor={theme.colors.textMuted}
+          placeholderTextColor="#B8C7D9"
+          selectionColor={theme.colors.lime}
           style={styles.input}
           multiline
           maxLength={1200}
@@ -166,13 +167,14 @@ const styles = StyleSheet.create({
   blockedBubble: { borderColor: theme.colors.warning, backgroundColor: '#FFF8E8' },
   messageRole: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginBottom: 5 },
   messageText: { color: theme.colors.text, fontSize: 14, lineHeight: 20 },
+  userMessageText: { color: theme.colors.white },
   reviewText: { color: theme.colors.warning, fontWeight: '800', fontSize: 11, marginTop: 8 },
   loadingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadingText: { color: theme.colors.textMuted, fontSize: 12 },
   error: { color: theme.colors.danger, fontSize: 12, paddingHorizontal: theme.spacing.lg, paddingBottom: 8 },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: theme.spacing.lg, paddingTop: 10, paddingBottom: 12, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  input: { flex: 1, minHeight: 44, maxHeight: 110, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, color: theme.colors.text, backgroundColor: theme.colors.background, fontSize: 13 },
-  sendButton: { backgroundColor: theme.colors.lime, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13 },
+  input: { flex: 1, minHeight: 48, maxHeight: 118, borderWidth: 1, borderColor: '#29496D', borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, color: theme.colors.white, backgroundColor: theme.colors.navyDark, fontSize: 14, lineHeight: 20 },
+  sendButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingHorizontal: 17, paddingVertical: 15 },
   sendButtonDisabled: { opacity: 0.45 },
   sendButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 12 },
 });
