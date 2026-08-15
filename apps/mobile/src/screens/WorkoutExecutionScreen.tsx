@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } from '../api/client';
 import { ExerciseVideoPlayer } from '../components/ExerciseVideoPlayer';
+import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
 import { WorkoutSessionControls } from '../components/WorkoutSessionControls';
 import { guidanceUrl } from '../workouts/exercise-guidance';
+import { workoutPhaseForProgress } from '../workouts/workout-impact';
 import { theme } from '../theme';
 
 type Props = {
@@ -43,6 +45,10 @@ function durationLabel(seconds: number | null) {
   if (seconds < 60) return `${seconds}s`;
   if (seconds % 60 === 0) return `${seconds / 60} min`;
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function formatLoad(value: number) {
+  return value % 1 === 0 ? String(value) : value.toFixed(1).replace('.', ',');
 }
 
 export function WorkoutExecutionScreen({ token, session, onSessionChange, onFinished }: Props) {
@@ -93,9 +99,17 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     return currentExercise.sets.find((set) => !set.completed) ?? null;
   }, [circuitRound, currentExercise, isCircuit]);
 
+  const nextExercise = useMemo(() => {
+    if (!currentExercise) return null;
+    return session.exercises
+      .filter((exercise) => exercise.order > currentExercise.order)
+      .find((exercise) => exercise.sets.some((set) => !set.completed)) ?? null;
+  }, [currentExercise, session.exercises]);
+
   const completedSets = session.exercises.flatMap((exercise) => exercise.sets).filter((set) => set.completed).length;
   const totalSets = session.exercises.reduce((total, exercise) => total + exercise.plannedSets, 0);
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+  const activePhase = workoutPhaseForProgress(completedSets, totalSets);
   const rounds = Number(session.plan.safety?.rounds ?? currentExercise?.plannedSets ?? 0);
   const currentExerciseStarted = Boolean(currentExercise?.sets.some((set) => set.completed));
 
@@ -136,6 +150,11 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     setSubstitutions([]);
     setShowSafetyPanel(false);
   }, [currentExercise?.id, currentSet?.setNumber]);
+
+  const adjustLoad = (delta: number) => {
+    const current = asNumber(loadKg) ?? 0;
+    setLoadKg(formatLoad(Math.max(0, Math.round((current + delta) * 2) / 2)));
+  };
 
   const saveCurrentSet = async () => {
     if (!currentExercise || !currentSet) return;
@@ -310,6 +329,8 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
       </View>
 
+      <WorkoutPhaseStrip exercises={session.exercises} activePhase={activePhase} compact />
+
       <WorkoutSessionControls
         token={token}
         sessionId={session.id}
@@ -335,6 +356,14 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <Text style={styles.exerciseOrder}>EXERCÍCIO {currentExercise.order} DE {session.exercises.length}</Text>
           <Text style={styles.exerciseName}>{currentExercise.name}</Text>
           <Text style={styles.exerciseMuscle}>{currentExercise.primaryMuscle}</Text>
+
+          {nextExercise ? (
+            <View style={styles.nextCard}>
+              <Text style={styles.nextEyebrow}>DEPOIS DESTE</Text>
+              <Text style={styles.nextName}>{nextExercise.name}</Text>
+              <Text style={styles.nextMeta}>{nextExercise.primaryMuscle} · {nextExercise.plannedSets} blocos</Text>
+            </View>
+          ) : null}
 
           <View style={styles.targetRow}>
             <View style={styles.targetItem}>
@@ -458,9 +487,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
                   <Text style={styles.inputLabel}>Repetições</Text>
                   <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
                 </View>
-                <View style={styles.inputGroup}>
+                <View style={[styles.inputGroup, styles.loadGroup]}>
                   <Text style={styles.inputLabel}>Carga (kg)</Text>
-                  <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
+                  <View style={styles.loadControl}>
+                    <TouchableOpacity onPress={() => adjustLoad(-0.5)} style={styles.loadAdjustButton}>
+                      <Text style={styles.loadAdjustText}>−</Text>
+                    </TouchableOpacity>
+                    <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={[styles.input, styles.loadInput]} placeholder="0" />
+                    <TouchableOpacity onPress={() => adjustLoad(0.5)} style={styles.loadAdjustButton}>
+                      <Text style={styles.loadAdjustText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.loadHint}>ajuste rápido ±0,5 kg</Text>
                 </View>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>RIR</Text>
@@ -550,6 +588,10 @@ const styles = StyleSheet.create({
   exerciseOrder: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   exerciseName: { color: theme.colors.navy, fontSize: 23, fontWeight: '900', marginTop: 6 },
   exerciseMuscle: { color: theme.colors.textMuted, fontSize: 12, marginTop: 3, textTransform: 'capitalize' },
+  nextCard: { backgroundColor: '#EEF4FA', borderRadius: 13, padding: 11, marginTop: 13, borderLeftWidth: 4, borderLeftColor: theme.colors.lime },
+  nextEyebrow: { color: theme.colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  nextName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900', marginTop: 2 },
+  nextMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   targetRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 16 },
   targetItem: { flex: 1 },
   targetValue: { color: theme.colors.text, fontWeight: '900', fontSize: 14 },
@@ -586,10 +628,16 @@ const styles = StyleSheet.create({
   suggestedLoadCard: { backgroundColor: '#EEF7DE', borderRadius: 12, padding: 12, marginBottom: 8 },
   suggestedLoadTitle: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   suggestedLoadText: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 3 },
-  inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
+  inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14, alignItems: 'flex-start' },
   inputGroup: { flex: 1 },
+  loadGroup: { flex: 1.45 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
-  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD' },
+  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD', minHeight: 45 },
+  loadControl: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  loadAdjustButton: { width: 34, minHeight: 45, borderRadius: 11, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center' },
+  loadAdjustText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  loadInput: { flex: 1, textAlign: 'center', minWidth: 48 },
+  loadHint: { color: theme.colors.textMuted, fontSize: 7, textAlign: 'center', marginTop: 3 },
   fullInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: theme.colors.text, backgroundColor: '#F9FBFD' },
   feedbackInput: { minHeight: 84, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
