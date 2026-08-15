@@ -25,6 +25,8 @@ import { ProgressService } from './progress/progress.service';
 import { CalisthenicsWorkoutService } from './workouts/calisthenics-workout.service';
 import { TaiChiWorkoutService } from './workouts/tai-chi-workout.service';
 import { WeeklyWorkoutService } from './workouts/weekly-workout.service';
+import { WorkoutAbandonmentController } from './workouts/workout-abandonment.controller';
+import { WorkoutAbandonmentService } from './workouts/workout-abandonment.service';
 import { WorkoutEngineService } from './workouts/workout-engine.service';
 import { WorkoutSafetyService } from './workouts/workout-safety.service';
 import { WorkoutSessionService } from './workouts/workout-session.service';
@@ -38,6 +40,7 @@ import { WorkoutsController } from './workouts/workouts.controller';
     DailyCheckinController,
     ExercisesController,
     WorkoutsController,
+    WorkoutAbandonmentController,
     ProgressController,
     NutritionController,
     ProfileController,
@@ -55,6 +58,7 @@ import { WorkoutsController } from './workouts/workouts.controller';
     WorkoutSafetyService,
     WorkoutEngineService,
     WorkoutSessionService,
+    WorkoutAbandonmentService,
     WeeklyWorkoutService,
     TaiChiWorkoutService,
     CalisthenicsWorkoutService,

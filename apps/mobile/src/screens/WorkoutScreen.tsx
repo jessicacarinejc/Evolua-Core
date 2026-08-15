@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { api, TaiChiRoutine, WorkoutPlan, WorkoutSession, WorkoutSummary } from '../api/client';
 import { theme } from '../theme';
+import { ExerciseGuidancePreview } from '../components/ExerciseGuidancePreview';
 import { WeeklyWorkoutCard } from '../components/WeeklyWorkoutCard';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
@@ -174,14 +174,6 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
     );
   };
 
-  const openVideo = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert('Vídeo indisponível', 'Não foi possível abrir o vídeo de referência neste dispositivo.');
-    }
-  };
-
   if (loading) {
     return (
       <View style={styles.center}>
@@ -293,6 +285,15 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
         {plan.estimatedMinutes} min · intensidade {String(plan.safety?.allowedIntensity ?? 'adaptada')} · {plan.exercises.length} exercícios
       </Text>
 
+      <View style={styles.guidedHero}>
+        <View style={styles.guidedHeroIcon}><Text style={styles.guidedHeroIconText}>▶</Text></View>
+        <View style={styles.guidedHeroText}>
+          <Text style={styles.guidedHeroEyebrow}>TREINO 100% GUIADO</Text>
+          <Text style={styles.guidedHeroTitle}>Veja como fazer antes de começar</Text>
+          <Text style={styles.guidedHeroBody}>Todos os exercícios abaixo têm demonstração em 4 fases, respiração, dica para iniciante e erros a evitar. Você pode abrir cada guia antes ou durante o treino.</Text>
+        </View>
+      </View>
+
       {token ? <WeeklyWorkoutCard token={token} /> : null}
 
       {currentRoutine === 'calisthenics_circuit' ? (
@@ -327,23 +328,17 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
           </View>
 
           {exercise.instructions ? <Text style={styles.instructions}>{exercise.instructions}</Text> : null}
-          {exercise.videoUrl ? (
-            <>
-              <TouchableOpacity onPress={() => void openVideo(exercise.videoUrl!)} style={styles.videoBadge}>
-                <Text style={styles.videoBadgeText}>Abrir vídeo de referência</Text>
-              </TouchableOpacity>
-              {exercise.videoAttribution ? (
-                <Text style={styles.videoCredit}>{exercise.videoAttribution}{exercise.videoLicense ? ` · ${exercise.videoLicense}` : ''}</Text>
-              ) : null}
-            </>
-          ) : (
-            <Text style={styles.videoPending}>Vídeo demonstrativo será vinculado ao catálogo.</Text>
-          )}
+          <ExerciseGuidancePreview
+            name={exercise.name}
+            videoUrl={exercise.videoUrl}
+            license={exercise.videoLicense}
+            attribution={exercise.videoAttribution}
+          />
         </View>
       ))}
 
       <TouchableOpacity disabled={starting} onPress={start} style={styles.primaryButton}>
-        {starting ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Iniciar treino</Text>}
+        {starting ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Iniciar treino guiado</Text>}
       </TouchableOpacity>
 
       <TouchableOpacity disabled={generating || starting || generatingTaiChi != null || generatingCalisthenics} onPress={generate} style={styles.secondaryButton}>
@@ -387,6 +382,13 @@ const styles = StyleSheet.create({
   eyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
   title: { color: theme.colors.navy, fontSize: 30, fontWeight: '900', marginTop: 5, textTransform: 'capitalize' },
   subtitle: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 8, marginBottom: 20 },
+  guidedHero: { flexDirection: 'row', backgroundColor: theme.colors.navy, borderRadius: 22, padding: 16, marginBottom: 16, alignItems: 'center' },
+  guidedHeroIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: theme.colors.lime, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  guidedHeroIconText: { color: theme.colors.navyDark, fontSize: 18, fontWeight: '900', marginLeft: 2 },
+  guidedHeroText: { flex: 1 },
+  guidedHeroEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  guidedHeroTitle: { color: theme.colors.white, fontSize: 16, fontWeight: '900', marginTop: 3 },
+  guidedHeroBody: { color: '#C8D4E3', fontSize: 10, lineHeight: 15, marginTop: 4 },
   infoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 18 },
   circuitInfoCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 17, marginBottom: 14 },
   infoTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
@@ -427,10 +429,6 @@ const styles = StyleSheet.create({
   prescriptionValue: { color: theme.colors.text, fontSize: 13, fontWeight: '900' },
   prescriptionLabel: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   instructions: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
-  videoBadge: { alignSelf: 'flex-start', backgroundColor: '#EEF7DE', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, marginTop: 12 },
-  videoBadgeText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
-  videoCredit: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 6 },
-  videoPending: { color: theme.colors.textMuted, fontSize: 10, fontStyle: 'italic', marginTop: 12 },
   noticeCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 16, marginTop: 16 },
   noticeTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 13 },
   noticeText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },

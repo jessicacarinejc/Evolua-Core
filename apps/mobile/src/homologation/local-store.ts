@@ -1,5 +1,6 @@
 import * as SecureStore from 'expo-secure-store';
 import { OnboardingData } from '../onboarding/types';
+import { guidanceUrl } from '../workouts/exercise-guidance';
 
 const LEGACY_STATE_KEY = 'evolua_core_homologation_local_state_v1';
 const STATE_META_KEY = 'evolua_core_homologation_state_meta_v1';
@@ -65,6 +66,23 @@ function parseState(raw: string | null): LocalHomologationState | null {
   }
 }
 
+function ensureGuidanceOnExercises(container: any) {
+  if (!container || !Array.isArray(container.exercises)) return;
+  container.exercises = container.exercises.map((exercise: any) => ({
+    ...exercise,
+    videoUrl: typeof exercise.videoUrl === 'string' && exercise.videoUrl.trim()
+      ? exercise.videoUrl
+      : guidanceUrl(String(exercise.name ?? 'Exercício')),
+  }));
+}
+
+function normalizeGuidance(state: LocalHomologationState) {
+  ensureGuidanceOnExercises(state.workout.currentPlan as any);
+  ensureGuidanceOnExercises(state.workout.activeSession as any);
+  state.workout.history.forEach((item: any) => ensureGuidanceOnExercises(item));
+  return state;
+}
+
 async function readChunkCount() {
   const raw = await SecureStore.getItemAsync(STATE_META_KEY);
   const parsed = Number(raw ?? 0);
@@ -80,16 +98,16 @@ export const localHomologationStore = {
       );
       if (chunks.every((chunk): chunk is string => typeof chunk === 'string')) {
         const parsed = parseState(chunks.join(''));
-        if (parsed) return parsed;
+        if (parsed) return normalizeGuidance(parsed);
       }
     }
 
     const legacy = parseState(await SecureStore.getItemAsync(LEGACY_STATE_KEY));
-    return legacy ?? emptyState();
+    return normalizeGuidance(legacy ?? emptyState());
   },
 
   async save(state: LocalHomologationState) {
-    const raw = JSON.stringify(state);
+    const raw = JSON.stringify(normalizeGuidance(state));
     const chunks = Array.from({ length: Math.ceil(raw.length / CHUNK_SIZE) }, (_, index) =>
       raw.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE),
     );
