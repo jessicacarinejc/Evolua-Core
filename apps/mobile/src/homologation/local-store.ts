@@ -96,7 +96,9 @@ export const localHomologationStore = {
     const previousCount = await readChunkCount();
 
     for (let index = 0; index < chunks.length; index += 1) {
-      await SecureStore.setItemAsync(`${STATE_CHUNK_PREFIX}${index}`, chunks[index]);
+      const chunk = chunks[index];
+      if (chunk == null) continue;
+      await SecureStore.setItemAsync(`${STATE_CHUNK_PREFIX}${index}`, chunk);
     }
     for (let index = chunks.length; index < previousCount; index += 1) {
       await SecureStore.deleteItemAsync(`${STATE_CHUNK_PREFIX}${index}`);
