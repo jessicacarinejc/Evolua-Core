@@ -12,7 +12,7 @@ import {
   Min,
 } from 'class-validator';
 
-export const GOAL_VALUES = [
+export const GOAL_VALUES: string[] = [
   'emagrecimento',
   'hipertrofia',
   'forca',
@@ -40,7 +40,7 @@ export const GOAL_VALUES = [
   'saude_bem_estar',
   'longevidade',
   'recuperacao_ativa',
-] as const;
+];
 
 export class OnboardingDto {
   @IsString()
