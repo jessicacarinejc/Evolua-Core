@@ -111,7 +111,7 @@ function PreferenceRow({
 
 export function OnboardingScreen({ onFinish }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [data, setData] = useState<OnboardingData>(initialOnboardingData);
+  const [data, setData] = useState(initialOnboardingData);
   const step = steps[stepIndex];
   const progress = ((stepIndex + 1) / steps.length) * 100;
   const storedGoals = data.goals ?? [];
