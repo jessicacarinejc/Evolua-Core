@@ -45,6 +45,8 @@ for attempt in $(seq 1 40); do
   sleep 2
 done
 
+EVOLUA_COMPOSE_FILE=docker-compose.homologation.yml \
+EVOLUA_COMPOSE_ENV_FILE=.env.homologation \
 npm run homologacao:migrate
 
 if [ -f /tmp/evolua-core-api.pid ] && kill -0 "$(cat /tmp/evolua-core-api.pid)" 2>/dev/null; then
