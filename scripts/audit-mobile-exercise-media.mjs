@@ -1,9 +1,12 @@
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
 const root = process.cwd();
-const manifestPath = path.join(root, 'apps/mobile/assets/exercises/media-manifest.json');
+const assetsDir = path.join(root, 'apps/mobile/assets/exercises');
+const manifestPath = path.join(assetsDir, 'media-manifest.json');
+const overridesPath = path.join(assetsDir, 'realistic-media-overrides.json');
 const strict = process.env.STRICT_EXERCISE_MEDIA === '1';
 const expectedExercises = 29;
 
@@ -12,7 +15,12 @@ function assert(condition, message) {
 }
 
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
-const exercises = Array.isArray(manifest.exercises) ? manifest.exercises : [];
+const overrides = existsSync(overridesPath)
+  ? JSON.parse(await readFile(overridesPath, 'utf8'))
+  : { exercises: [] };
+const overrideBySlug = new Map((overrides.exercises ?? []).map((item) => [item.slug, item]));
+const exercises = (Array.isArray(manifest.exercises) ? manifest.exercises : [])
+  .map((item) => ({ ...item, ...(overrideBySlug.get(item.slug) ?? {}) }));
 const slugs = exercises.map((item) => String(item.slug ?? '').trim()).filter(Boolean);
 const unique = new Set(slugs);
 
@@ -39,6 +47,7 @@ for (const item of exercises) {
   const license = String(item.license ?? '').trim();
   const attribution = String(item.attribution ?? '').trim();
   const sourceUrl = String(item.sourceUrl ?? '').trim();
+  const sourcePageUrl = String(item.sourcePageUrl ?? '').trim();
   const finalQuality = String(item.finalQuality ?? '').trim();
   const motionMatch = String(item.motionMatch ?? '').trim();
   const licenseAudit = String(item.licenseAudit ?? '').trim();
@@ -49,7 +58,7 @@ for (const item of exercises) {
     continue;
   }
 
-  const absoluteFile = path.join(root, 'apps/mobile/assets/exercises', sourceFile);
+  const absoluteFile = path.join(assetsDir, sourceFile);
   try {
     await access(absoluteFile);
     const entry = {
@@ -61,6 +70,7 @@ for (const item of exercises) {
       license,
       attribution,
       sourceUrl: sourceUrl || null,
+      sourcePageUrl: sourcePageUrl || null,
       motionMatch: motionMatch || null,
       licenseAudit: licenseAudit || null,
     };
@@ -69,15 +79,13 @@ for (const item of exercises) {
     if (finalQuality === 'realistic-human-demo') {
       const realisticProblems = [];
       if (isOriginalAnimation) realisticProblems.push('animação procedural não conta como demonstração humana realista final');
-      if (!sourceUrl) realisticProblems.push('fonte auditável ausente');
+      if (!sourceUrl) realisticProblems.push('arquivo-fonte auditável ausente');
+      if (!sourcePageUrl) realisticProblems.push('página de origem/licença ausente');
       if (motionMatch !== 'verified') realisticProblems.push('movimento do clipe ainda não foi verificado contra o exercício catalogado');
       if (licenseAudit !== 'verified') realisticProblems.push('licença/atribuição ainda não foram auditadas');
 
-      if (realisticProblems.length) {
-        realisticRejected.push({ ...entry, reasons: realisticProblems });
-      } else {
-        realisticFinal.push(entry);
-      }
+      if (realisticProblems.length) realisticRejected.push({ ...entry, reasons: realisticProblems });
+      else realisticFinal.push(entry);
     } else {
       animatedFallback.push(entry);
     }
@@ -106,6 +114,7 @@ const report = {
     proceduralAnimationIsFallback: true,
     realisticClipRequires: {
       sourceUrl: true,
+      sourcePageUrl: true,
       motionMatch: 'verified',
       licenseAudit: 'verified',
     },
