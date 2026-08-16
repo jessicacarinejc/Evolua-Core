@@ -24,7 +24,8 @@
     "homologacao:admin": "node --env-file=.env.homologation scripts/promote-local-admin.mjs",
     "homologacao:smoke": "node --env-file=.env.homologation scripts/smoke-local-homologation.mjs",
     "homologacao:e2e": "node --env-file=.env.homologation scripts/e2e-local-homologation.mjs",
-    "homologacao:media": "node scripts/audit-local-media.mjs"
+    "homologacao:media": "node scripts/audit-local-media.mjs",
+    "homologacao:media:mobile": "node scripts/audit-mobile-exercise-media.mjs"
   },
   "engines": {
     "node": ">=20.19"
