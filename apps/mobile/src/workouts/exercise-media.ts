@@ -1,3 +1,5 @@
+import { generatedLocalExerciseClips } from './exercise-media.generated';
+
 export type ExerciseMedia =
   | { kind: 'local-clip'; source: number }
   | { kind: 'remote-video'; source: string }
@@ -14,16 +16,14 @@ function keyOf(name: string) {
 }
 
 /**
- * Registro intencionalmente separado da UI para receber clipes reais,
- * licenciados e empacotados no APK. Ao adicionar um arquivo em assets,
- * associe aqui com require('../../assets/exercises/<arquivo>.mp4').
+ * O registro efetivo de clipes locais é gerado no GitHub Actions a partir do
+ * manifesto auditado. Isso permite empacotar MP4s no APK sem depender da
+ * internet durante o uso e sem versionar binários grandes no repositório.
  *
  * Não usamos sequências de prints como vídeo final. Enquanto um clipe real
- * não existir, a tela mantém o guia textual/animado offline como fallback.
+ * não existir, a tela mantém a demonstração animada contínua como fallback.
  */
-const localExerciseClips: Record<string, number> = {
-  // 'agachamento-livre': require('../../assets/exercises/agachamento-livre.mp4'),
-};
+const localExerciseClips: Record<string, number> = generatedLocalExerciseClips;
 
 export function resolveExerciseMedia(name: string, videoUrl?: string | null): ExerciseMedia {
   const local = localExerciseClips[keyOf(name)];

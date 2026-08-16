@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { api, WorkoutHistoryItem } from '../api/client';
 import { theme } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
@@ -52,8 +53,56 @@ const statusLabels: Record<WeeklyStatus, string> = {
   revisao_profissional: 'Revisão profissional',
 };
 
+function deltaLabel(current: number, previous: number, suffix = '') {
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.05) return `igual${suffix ? ` · ${current.toFixed(1)}${suffix}` : ''}`;
+  const sign = delta > 0 ? '+' : '';
+  return `${sign}${delta.toFixed(1).replace('.', ',')}${suffix}`;
+}
+
+function RecentWorkoutComparison({ history }: { history: WorkoutHistoryItem[] }) {
+  const latest = history[0];
+  const previous = history[1];
+  if (!latest || !previous) return null;
+
+  return (
+    <View style={styles.comparisonCard}>
+      <Text style={styles.comparisonEyebrow}>EVOLUÇÃO RECENTE</Text>
+      <Text style={styles.comparisonTitle}>Último treino × treino anterior</Text>
+      <Text style={styles.comparisonSubtitle}>Comparação simples do que você realmente registrou. Mais carga ou volume não significa automaticamente treino melhor.</Text>
+      <View style={styles.comparisonGrid}>
+        <View style={styles.comparisonItem}>
+          <Text style={styles.comparisonValue}>{latest.completedSets}</Text>
+          <Text style={styles.comparisonLabel}>blocos</Text>
+          <Text style={styles.comparisonDelta}>{deltaLabel(latest.completedSets, previous.completedSets)}</Text>
+        </View>
+        <View style={styles.comparisonItem}>
+          <Text style={styles.comparisonValue}>{latest.durationMinutes} min</Text>
+          <Text style={styles.comparisonLabel}>duração</Text>
+          <Text style={styles.comparisonDelta}>{deltaLabel(latest.durationMinutes, previous.durationMinutes, ' min')}</Text>
+        </View>
+        <View style={styles.comparisonItem}>
+          <Text style={styles.comparisonValue}>{latest.volumeKg.toFixed(0)} kg</Text>
+          <Text style={styles.comparisonLabel}>volume</Text>
+          <Text style={styles.comparisonDelta}>{deltaLabel(latest.volumeKg, previous.volumeKg, ' kg')}</Text>
+        </View>
+        <View style={styles.comparisonItem}>
+          <Text style={styles.comparisonValue}>RPE {latest.perceivedEffort ?? '—'}</Text>
+          <Text style={styles.comparisonLabel}>esforço</Text>
+          <Text style={styles.comparisonDelta}>
+            {latest.perceivedEffort != null && previous.perceivedEffort != null
+              ? deltaLabel(latest.perceivedEffort, previous.perceivedEffort)
+              : 'sem comparação'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 export function WeeklyWorkoutCard({ token }: Props) {
   const [week, setWeek] = useState<WeeklyPlan | null>(null);
+  const [history, setHistory] = useState<WorkoutHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,9 +127,9 @@ export function WeeklyWorkoutCard({ token }: Props) {
       setWeek(payload as WeeklyPlan);
     } catch (cause) {
       if (cause instanceof Error && cause.name === 'AbortError') {
-        setError('A API demorou para responder. Confira a rede local e tente novamente.');
+        setError('A resposta demorou mais que o esperado. Tente novamente.');
       } else {
-        setError('Não foi possível carregar sua semana. Verifique a conexão com a API local e tente novamente.');
+        setError('Não foi possível carregar sua semana agora. Tente novamente.');
       }
     } finally {
       clearTimeout(timeout);
@@ -88,9 +137,19 @@ export function WeeklyWorkoutCard({ token }: Props) {
     }
   }, [token]);
 
+  const loadHistory = useCallback(async () => {
+    try {
+      const workouts = await api.getWorkoutHistory(token);
+      setHistory(workouts.slice(0, 2));
+    } catch {
+      setHistory([]);
+    }
+  }, [token]);
+
   useEffect(() => {
     void loadWeek();
-  }, [loadWeek]);
+    void loadHistory();
+  }, [loadHistory, loadWeek]);
 
   return (
     <View style={styles.card}>
@@ -125,6 +184,8 @@ export function WeeklyWorkoutCard({ token }: Props) {
       ) : (
         <Text style={styles.muted}>Nenhum planejamento disponível para esta semana.</Text>
       )}
+
+      <RecentWorkoutComparison history={history} />
     </View>
   );
 }
@@ -148,4 +209,13 @@ const styles = StyleSheet.create({
   status: { color: '#C8D4E3', fontSize: 8, lineHeight: 10, textAlign: 'center', marginTop: 5 },
   todayText: { color: theme.colors.navyDark },
   note: { color: '#C8D4E3', fontSize: 10, lineHeight: 16, marginTop: 12 },
+  comparisonCard: { backgroundColor: '#17385D', borderRadius: 16, padding: 13, marginTop: 15, borderWidth: 1, borderColor: '#2D527B' },
+  comparisonEyebrow: { color: theme.colors.lime, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  comparisonTitle: { color: theme.colors.white, fontSize: 14, fontWeight: '900', marginTop: 3 },
+  comparisonSubtitle: { color: '#AFC0D1', fontSize: 9, lineHeight: 14, marginTop: 4 },
+  comparisonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 11 },
+  comparisonItem: { width: '48%', backgroundColor: '#0F2B4F', borderRadius: 12, padding: 10 },
+  comparisonValue: { color: theme.colors.white, fontSize: 15, fontWeight: '900' },
+  comparisonLabel: { color: '#AFC0D1', fontSize: 8, marginTop: 2 },
+  comparisonDelta: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', marginTop: 5 },
 });

@@ -6,6 +6,8 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
+      - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -14,6 +16,8 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
+      - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -54,8 +58,22 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Preparar FFmpeg
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          ffmpeg -version | head -n 1
+
+      - name: Materializar vídeos reais offline
+        run: npm run homologacao:media:prepare
+
       - name: Typecheck mobile
         run: npm --workspace @evolua/mobile run typecheck
+
+      - name: Auditar vídeos reais offline
+        run: npm run homologacao:media:mobile
 
       - name: Preparar ambiente temporário de build
         run: |
