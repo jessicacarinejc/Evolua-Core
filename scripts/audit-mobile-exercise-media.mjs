@@ -25,6 +25,7 @@ const playable = [];
 const pending = [];
 const invalid = [];
 const realisticFinal = [];
+const realisticRejected = [];
 const animatedFallback = [];
 
 for (const item of exercises) {
@@ -39,6 +40,8 @@ for (const item of exercises) {
   const attribution = String(item.attribution ?? '').trim();
   const sourceUrl = String(item.sourceUrl ?? '').trim();
   const finalQuality = String(item.finalQuality ?? '').trim();
+  const motionMatch = String(item.motionMatch ?? '').trim();
+  const licenseAudit = String(item.licenseAudit ?? '').trim();
 
   const isOriginalAnimation = sourceKind === 'original-animation';
   if (!sourceFile || !license || !attribution || (!isOriginalAnimation && !sourceUrl)) {
@@ -58,10 +61,26 @@ for (const item of exercises) {
       license,
       attribution,
       sourceUrl: sourceUrl || null,
+      motionMatch: motionMatch || null,
+      licenseAudit: licenseAudit || null,
     };
     playable.push(entry);
-    if (finalQuality === 'realistic-human-demo') realisticFinal.push(entry);
-    else animatedFallback.push(entry);
+
+    if (finalQuality === 'realistic-human-demo') {
+      const realisticProblems = [];
+      if (isOriginalAnimation) realisticProblems.push('animação procedural não conta como demonstração humana realista final');
+      if (!sourceUrl) realisticProblems.push('fonte auditável ausente');
+      if (motionMatch !== 'verified') realisticProblems.push('movimento do clipe ainda não foi verificado contra o exercício catalogado');
+      if (licenseAudit !== 'verified') realisticProblems.push('licença/atribuição ainda não foram auditadas');
+
+      if (realisticProblems.length) {
+        realisticRejected.push({ ...entry, reasons: realisticProblems });
+      } else {
+        realisticFinal.push(entry);
+      }
+    } else {
+      animatedFallback.push(entry);
+    }
   } catch {
     invalid.push({ slug: item.slug, reason: `arquivo ausente: ${sourceFile}` });
   }
@@ -76,6 +95,7 @@ const report = {
   playableCoveragePercent,
   realisticFinalClips: realisticFinal.length,
   realisticCoveragePercent,
+  realisticRejectedClips: realisticRejected.length,
   animatedFallbackClips: animatedFallback.length,
   pendingClips: pending.length,
   invalidClips: invalid.length,
@@ -84,9 +104,15 @@ const report = {
     ...manifest.policy,
     finalAcceptance: 'realistic-human-demo',
     proceduralAnimationIsFallback: true,
+    realisticClipRequires: {
+      sourceUrl: true,
+      motionMatch: 'verified',
+      licenseAudit: 'verified',
+    },
   },
   playable,
   realisticFinal,
+  realisticRejected,
   animatedFallback,
   pending,
   invalid,
@@ -98,10 +124,12 @@ await writeFile(path.join(root, 'dist', 'exercise-media-coverage.json'), `${JSON
 console.log(`[exercise-media] cobertura reproduzível no APK: ${playable.length}/${expectedExercises} (${playableCoveragePercent}%).`);
 console.log(`[exercise-media] cobertura realista final: ${realisticFinal.length}/${expectedExercises} (${realisticCoveragePercent}%).`);
 if (animatedFallback.length) console.log(`[exercise-media] fallbacks animados: ${animatedFallback.length}.`);
+if (realisticRejected.length) console.error(`[exercise-media] candidatos realistas rejeitados: ${realisticRejected.length}.`);
 if (pending.length) console.log(`[exercise-media] pendentes: ${pending.length}.`);
 if (invalid.length) console.error(`[exercise-media] inválidos: ${invalid.length}.`);
 
 assert(invalid.length === 0, 'Existem clipes marcados como prontos com metadados/arquivo inválidos.');
+assert(realisticRejected.length === 0, 'Existem clipes marcados como realistas finais sem correspondência de movimento e auditoria de licença comprovadas.');
 if (strict) {
   assert(playable.length === expectedExercises, `APK de homologação exige ${expectedExercises}/${expectedExercises} demonstrações offline reproduzíveis.`);
 }
