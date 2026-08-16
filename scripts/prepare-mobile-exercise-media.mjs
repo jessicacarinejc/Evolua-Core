@@ -20,6 +20,15 @@ function run(command, args) {
   execFileSync(command, args, { stdio: 'inherit', cwd: root });
 }
 
+function keyOf(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 function runFfmpeg(input, output, item) {
   const args = ['-y'];
   if (Number.isFinite(item.clipStartSeconds)) args.push('-ss', String(item.clipStartSeconds));
@@ -41,6 +50,13 @@ async function download(url, target) {
 }
 
 const generatedEntries = [];
+const generatedKeys = new Set();
+
+function addGeneratedKey(key, sourceFile) {
+  if (!key || generatedKeys.has(key)) return;
+  generatedKeys.add(key);
+  generatedEntries.push(`  ${JSON.stringify(key)}: require('../../assets/exercises/${sourceFile}'),`);
+}
 
 try {
   for (const item of ready) {
@@ -64,7 +80,9 @@ try {
       }
     }
 
-    generatedEntries.push(`  ${JSON.stringify(item.slug)}: require('../../assets/exercises/${sourceFile}'),`);
+    addGeneratedKey(keyOf(item.slug), sourceFile);
+    addGeneratedKey(keyOf(item.name), sourceFile);
+    for (const alias of item.aliases ?? []) addGeneratedKey(keyOf(alias), sourceFile);
   }
 
   const generated = [
@@ -77,7 +95,7 @@ try {
     '',
   ].join('\n');
   await writeFile(generatedPath, generated);
-  console.log(`[exercise-media] ${ready.length} clipe(s) instrutivo(s) offline materializado(s) para o APK.`);
+  console.log(`[exercise-media] ${ready.length} clipe(s) instrutivo(s) offline materializado(s); ${generatedKeys.size} chave(s) de resolução.`);
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }
