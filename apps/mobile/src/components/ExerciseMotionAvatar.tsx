@@ -50,34 +50,36 @@ function numericRange(value: Animated.Value, pair: [number, number] | undefined)
   return value.interpolate({ inputRange: [0, 0.5, 1], outputRange: [from, to, from] });
 }
 
-function Limb({
-  progress,
-  rotation,
-  style,
-}: {
-  progress: Animated.Value;
-  rotation?: [number, number];
-  style: object;
-}) {
+function Limb({ progress, rotation, style }: { progress: Animated.Value; rotation?: [number, number]; style: object }) {
   return <Animated.View style={[styles.limb, style, { transform: [{ rotate: range(progress, rotation) }] }]} />;
 }
 
-export function ExerciseMotionAvatar({ pose, slow = false }: { pose: ExercisePoseFamily; slow?: boolean }) {
+export function ExerciseMotionAvatar({
+  pose,
+  slow = false,
+  playing = true,
+}: {
+  pose: ExercisePoseFamily;
+  slow?: boolean;
+  playing?: boolean;
+}) {
   const progress = useRef(new Animated.Value(0)).current;
   const config = useMemo(() => poses[pose] ?? poses.walk, [pose]);
 
   useEffect(() => {
+    progress.stopAnimation();
+    if (!playing) return;
     progress.setValue(0);
     const loop = Animated.loop(
       Animated.timing(progress, {
         toValue: 1,
-        duration: slow ? 5200 : 3200,
+        duration: slow ? 5600 : 3200,
         useNativeDriver: true,
       }),
     );
     loop.start();
     return () => loop.stop();
-  }, [progress, pose, slow]);
+  }, [playing, progress, pose, slow]);
 
   return (
     <View style={styles.frame} accessibilityLabel="Demonstração animada contínua do movimento">
@@ -124,7 +126,6 @@ export function ExerciseMotionAvatar({ pose, slow = false }: { pose: ExercisePos
           </View>
         </View>
       </Animated.View>
-
       <View style={styles.badge}><View style={styles.badgeDot} /></View>
     </View>
   );
