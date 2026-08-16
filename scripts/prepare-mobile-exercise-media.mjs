@@ -8,6 +8,7 @@ const root = process.cwd();
 const assetsDir = path.join(root, 'apps/mobile/assets/exercises');
 const manifestPath = path.join(assetsDir, 'media-manifest.json');
 const generatedPath = path.join(root, 'apps/mobile/src/workouts/exercise-media.generated.ts');
+const generatorPath = path.join(root, 'scripts/generate-original-exercise-clip.py');
 const tempDir = path.join(root, '.tmp-exercise-media');
 const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 const ready = (manifest.exercises ?? []).filter((item) => item.status === 'ready');
@@ -15,22 +16,26 @@ const ready = (manifest.exercises ?? []).filter((item) => item.status === 'ready
 await mkdir(assetsDir, { recursive: true });
 await mkdir(tempDir, { recursive: true });
 
+function run(command, args) {
+  execFileSync(command, args, { stdio: 'inherit', cwd: root });
+}
+
+function keyOf(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 function runFfmpeg(input, output, item) {
   const args = ['-y'];
   if (Number.isFinite(item.clipStartSeconds)) args.push('-ss', String(item.clipStartSeconds));
   args.push('-i', input);
   if (Number.isFinite(item.clipDurationSeconds)) args.push('-t', String(item.clipDurationSeconds));
-  args.push(
-    '-vf', 'scale=-2:480',
-    '-an',
-    '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '28',
-    '-pix_fmt', 'yuv420p',
-    '-movflags', '+faststart',
-    output,
-  );
-  execFileSync('ffmpeg', args, { stdio: 'inherit' });
+  args.push('-vf', 'scale=-2:480', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '28', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', output);
+  run('ffmpeg', args);
 }
 
 async function download(url, target) {
@@ -45,23 +50,39 @@ async function download(url, target) {
 }
 
 const generatedEntries = [];
+const generatedKeys = new Set();
+
+function addGeneratedKey(key, sourceFile) {
+  if (!key || generatedKeys.has(key)) return;
+  generatedKeys.add(key);
+  generatedEntries.push(`  ${JSON.stringify(key)}: require('../../assets/exercises/${sourceFile}'),`);
+}
 
 try {
   for (const item of ready) {
-    const sourceUrl = String(item.sourceUrl ?? '').trim();
     const sourceFile = String(item.sourceFile ?? '').trim();
-    if (!sourceUrl || !sourceFile) throw new Error(`${item.slug}: fonte pronta sem sourceUrl/sourceFile.`);
+    const sourceKind = String(item.sourceKind ?? 'external').trim();
+    if (!sourceFile) throw new Error(`${item.slug}: fonte pronta sem sourceFile.`);
 
     const target = path.join(assetsDir, sourceFile);
     if (!existsSync(target)) {
-      const source = path.join(tempDir, `${item.slug}.source`);
-      console.log(`[exercise-media] baixando ${item.name}...`);
-      await download(sourceUrl, source);
-      console.log(`[exercise-media] convertendo ${item.name} para MP4 offline...`);
-      runFfmpeg(source, target, item);
+      if (sourceKind === 'original-animation') {
+        console.log(`[exercise-media] gerando clipe original: ${item.name}...`);
+        run('python', [generatorPath, '--slug', item.slug, '--name', item.name, '--output', target]);
+      } else {
+        const sourceUrl = String(item.sourceUrl ?? '').trim();
+        if (!sourceUrl) throw new Error(`${item.slug}: mídia externa pronta sem sourceUrl.`);
+        const source = path.join(tempDir, `${item.slug}.source`);
+        console.log(`[exercise-media] baixando ${item.name}...`);
+        await download(sourceUrl, source);
+        console.log(`[exercise-media] convertendo ${item.name} para MP4 offline...`);
+        runFfmpeg(source, target, item);
+      }
     }
 
-    generatedEntries.push(`  ${JSON.stringify(item.slug)}: require('../../assets/exercises/${sourceFile}'),`);
+    addGeneratedKey(keyOf(item.slug), sourceFile);
+    addGeneratedKey(keyOf(item.name), sourceFile);
+    for (const alias of item.aliases ?? []) addGeneratedKey(keyOf(alias), sourceFile);
   }
 
   const generated = [
@@ -74,7 +95,7 @@ try {
     '',
   ].join('\n');
   await writeFile(generatedPath, generated);
-  console.log(`[exercise-media] ${ready.length} clipe(s) real(is) materializado(s) para o APK.`);
+  console.log(`[exercise-media] ${ready.length} clipe(s) instrutivo(s) offline materializado(s); ${generatedKeys.size} chave(s) de resolução.`);
 } finally {
   await rm(tempDir, { recursive: true, force: true });
 }

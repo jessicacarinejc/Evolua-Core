@@ -7,6 +7,7 @@ on:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
       - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/generate-original-exercise-clip.py'
       - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -17,6 +18,7 @@ on:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
       - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/generate-original-exercise-clip.py'
       - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
@@ -38,6 +40,7 @@ jobs:
     env:
       EXPO_PUBLIC_HOMOLOGATION_OFFLINE: '1'
       EXPO_PUBLIC_API_URL: http://offline.evolua.local/v1
+      STRICT_EXERCISE_MEDIA: '1'
 
     steps:
       - name: Checkout
@@ -58,21 +61,23 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
-      - name: Preparar FFmpeg
+      - name: Preparar ferramentas de mídia
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y ffmpeg
           fi
+          python -m pip install --disable-pip-version-check --quiet pillow
           ffmpeg -version | head -n 1
+          python -c "from PIL import Image; print('Pillow pronto')"
 
-      - name: Materializar vídeos reais offline
+      - name: Materializar 29 clipes instrutivos offline
         run: npm run homologacao:media:prepare
 
       - name: Typecheck mobile
         run: npm --workspace @evolua/mobile run typecheck
 
-      - name: Auditar vídeos reais offline
+      - name: Auditar cobertura 29 por 29
         run: npm run homologacao:media:mobile
 
       - name: Preparar ambiente temporário de build
@@ -82,7 +87,6 @@ jobs:
 
       - name: Reparar PNG do branding para prebuild
         run: |
-          python -m pip install --disable-pip-version-check --quiet pillow
           python - <<'PY'
           from pathlib import Path
           from PIL import Image, ImageFile
@@ -102,7 +106,7 @@ jobs:
       - name: Gerar APK
         run: npm run homologacao:android
 
-      - name: Publicar APK e manifesto
+      - name: Publicar APK, manifesto e cobertura de mídia
         uses: actions/upload-artifact@v7
         with:
           name: evolua-core-android-homologacao-${{ github.sha }}
