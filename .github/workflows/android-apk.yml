@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
+      - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
+      - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -56,6 +58,9 @@ jobs:
 
       - name: Typecheck mobile
         run: npm --workspace @evolua/mobile run typecheck
+
+      - name: Auditar vídeos reais offline
+        run: npm run homologacao:media:mobile
 
       - name: Preparar ambiente temporário de build
         run: |
