@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +12,7 @@ import {
 } from 'react-native';
 import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } from '../api/client';
 import { ExerciseVideoPlayer } from '../components/ExerciseVideoPlayer';
+import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
 import { WorkoutSessionControls } from '../components/WorkoutSessionControls';
 import { guidanceUrl } from '../workouts/exercise-guidance';
 import { theme } from '../theme';
@@ -23,6 +25,10 @@ type Props = {
 };
 
 type SafetyInputType = 'pain' | 'dizziness' | 'shortness_of_breath' | 'other';
+type SessionPhase = 'warmup' | 'main' | 'cooldown';
+
+const WARMUP_SECONDS = 180;
+const COOLDOWN_SECONDS = 180;
 
 const safetyTypeLabels: Record<SafetyInputType, string> = {
   pain: 'Dor/desconforto',
@@ -45,6 +51,20 @@ function durationLabel(seconds: number | null) {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
+function formatLoad(value: number) {
+  return value % 1 === 0 ? String(value) : value.toFixed(1).replace('.', ',');
+}
+
+function clockLabel(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return `${minutes}:${String(rest).padStart(2, '0')}`;
+}
+
+function phaseStorageKey(sessionId: string) {
+  return `evolua.workout.phase.${sessionId}`;
+}
+
 export function WorkoutExecutionScreen({ token, session, onSessionChange, onFinished }: Props) {
   const [reps, setReps] = useState('');
   const [loadKg, setLoadKg] = useState('');
@@ -65,6 +85,11 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const [loadingSubstitutions, setLoadingSubstitutions] = useState(false);
   const [substitutingId, setSubstitutingId] = useState<string | null>(null);
   const [substitutions, setSubstitutions] = useState<WorkoutSubstitutionCandidate[]>([]);
+  const [phaseReady, setPhaseReady] = useState(false);
+  const [warmupCompleted, setWarmupCompleted] = useState(false);
+  const [cooldownCompleted, setCooldownCompleted] = useState(false);
+  const [phaseRemaining, setPhaseRemaining] = useState(WARMUP_SECONDS);
+  const [phaseRunning, setPhaseRunning] = useState(false);
 
   const isCircuit = session.plan.safety?.routine === 'calisthenics_circuit';
   const circuitRound = useMemo(() => {
@@ -93,11 +118,54 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     return currentExercise.sets.find((set) => !set.completed) ?? null;
   }, [circuitRound, currentExercise, isCircuit]);
 
+  const nextExercise = useMemo(() => {
+    if (!currentExercise) return null;
+    return session.exercises
+      .filter((exercise) => exercise.order > currentExercise.order)
+      .find((exercise) => exercise.sets.some((set) => !set.completed)) ?? null;
+  }, [currentExercise, session.exercises]);
+
   const completedSets = session.exercises.flatMap((exercise) => exercise.sets).filter((set) => set.completed).length;
   const totalSets = session.exercises.reduce((total, exercise) => total + exercise.plannedSets, 0);
+  const allMainCompleted = totalSets > 0 && completedSets >= totalSets;
   const progress = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0;
+  const activePhase: SessionPhase = !warmupCompleted ? 'warmup' : allMainCompleted && !cooldownCompleted ? 'cooldown' : 'main';
   const rounds = Number(session.plan.safety?.rounds ?? currentExercise?.plannedSets ?? 0);
   const currentExerciseStarted = Boolean(currentExercise?.sets.some((set) => set.completed));
+
+  useEffect(() => {
+    let active = true;
+    setPhaseReady(false);
+    setPhaseRunning(false);
+    void SecureStore.getItemAsync(phaseStorageKey(session.id))
+      .then((raw) => {
+        if (!active) return;
+        if (raw) {
+          try {
+            const saved = JSON.parse(raw) as { warmupCompleted?: boolean; cooldownCompleted?: boolean };
+            const warmupDone = Boolean(saved.warmupCompleted);
+            const cooldownDone = Boolean(saved.cooldownCompleted);
+            setWarmupCompleted(warmupDone);
+            setCooldownCompleted(cooldownDone);
+            setPhaseRemaining(warmupDone ? COOLDOWN_SECONDS : WARMUP_SECONDS);
+          } catch {
+            setWarmupCompleted(false);
+            setCooldownCompleted(false);
+            setPhaseRemaining(WARMUP_SECONDS);
+          }
+        } else {
+          setWarmupCompleted(false);
+          setCooldownCompleted(false);
+          setPhaseRemaining(WARMUP_SECONDS);
+        }
+      })
+      .finally(() => {
+        if (active) setPhaseReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [session.id]);
 
   useEffect(() => {
     if (!restRemaining) return;
@@ -118,6 +186,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   }, [workRemaining, workRunning]);
 
   useEffect(() => {
+    if (!phaseRunning || phaseRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setPhaseRemaining((value) => {
+        const next = Math.max(0, value - 1);
+        if (next === 0) setPhaseRunning(false);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phaseRemaining, phaseRunning]);
+
+  useEffect(() => {
     if (!currentExercise || !currentSet) return;
     const previous = [...currentExercise.sets]
       .filter((set) => set.completed && set.setNumber < currentSet.setNumber)
@@ -136,6 +216,39 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     setSubstitutions([]);
     setShowSafetyPanel(false);
   }, [currentExercise?.id, currentSet?.setNumber]);
+
+  const persistPhase = async (warmupDone: boolean, cooldownDone: boolean) => {
+    await SecureStore.setItemAsync(
+      phaseStorageKey(session.id),
+      JSON.stringify({ warmupCompleted: warmupDone, cooldownCompleted: cooldownDone }),
+    );
+  };
+
+  const completeWarmup = async () => {
+    setPhaseRunning(false);
+    setWarmupCompleted(true);
+    setPhaseRemaining(COOLDOWN_SECONDS);
+    try {
+      await persistPhase(true, cooldownCompleted);
+    } catch {
+      Alert.alert('Aquecimento concluído', 'O treino principal foi liberado, mas não foi possível salvar o estado da fase no dispositivo.');
+    }
+  };
+
+  const completeCooldown = async () => {
+    setPhaseRunning(false);
+    setCooldownCompleted(true);
+    try {
+      await persistPhase(true, true);
+    } catch {
+      Alert.alert('Resfriamento concluído', 'A finalização foi liberada, mas não foi possível salvar o estado da fase no dispositivo.');
+    }
+  };
+
+  const adjustLoad = (delta: number) => {
+    const current = asNumber(loadKg) ?? 0;
+    setLoadKg(formatLoad(Math.max(0, Math.round((current + delta) * 2) / 2)));
+  };
 
   const saveCurrentSet = async () => {
     if (!currentExercise || !currentSet) return;
@@ -256,6 +369,10 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   };
 
   const finishWorkout = async () => {
+    if (!cooldownCompleted) {
+      Alert.alert('Conclua o resfriamento', 'Finalize a etapa de resfriamento antes de encerrar a sessão.');
+      return;
+    }
     const effort = Number(perceivedEffort);
     if (!Number.isInteger(effort) || effort < 1 || effort > 10) {
       Alert.alert('Esforço inválido', 'Informe um esforço geral entre 1 e 10.');
@@ -268,6 +385,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         perceivedEffort: effort,
         feedback: feedback.trim() || undefined,
       });
+      await SecureStore.deleteItemAsync(phaseStorageKey(session.id)).catch(() => undefined);
       onSessionChange(result.session);
       onFinished(result.summary);
     } catch (cause) {
@@ -285,6 +403,64 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     !currentExercise.sets.some((set) => set.completed),
   );
 
+  const phaseCard = (phase: 'warmup' | 'cooldown') => {
+    const warmup = phase === 'warmup';
+    const steps = warmup
+      ? [
+          'Mobilidade leve de ombros, quadril e tornozelos, sem forçar amplitude.',
+          'Marcha ou caminhada leve para elevar gradualmente a temperatura corporal.',
+          'Ensaio do primeiro exercício com carga muito leve ou apenas o peso do corpo.',
+        ]
+      : [
+          'Caminhe ou marche devagar para reduzir progressivamente a intensidade.',
+          'Respire de forma lenta e confortável, sem prender o ar.',
+          'Faça mobilidade ou alongamento leve, sem dor e sem buscar amplitude máxima.',
+        ];
+    const title = warmup ? 'Aquecimento' : 'Resfriamento';
+    const action = warmup ? completeWarmup : completeCooldown;
+    const initialSeconds = warmup ? WARMUP_SECONDS : COOLDOWN_SECONDS;
+
+    return (
+      <View style={styles.phaseExecutionCard}>
+        <Text style={styles.phaseExecutionEyebrow}>{warmup ? 'PREPARAR O CORPO' : 'DESACELERAR'}</Text>
+        <Text style={styles.phaseExecutionTitle}>{title} guiado</Text>
+        <Text style={styles.phaseExecutionText}>
+          {warmup
+            ? 'Complete esta etapa antes de liberar o treino principal.'
+            : 'Complete esta etapa antes de registrar o RPE e finalizar a sessão.'}
+        </Text>
+
+        {steps.map((step, index) => (
+          <View key={step} style={styles.phaseStepRow}>
+            <View style={styles.phaseStepNumber}><Text style={styles.phaseStepNumberText}>{index + 1}</Text></View>
+            <Text style={styles.phaseStepText}>{step}</Text>
+          </View>
+        ))}
+
+        <View style={styles.phaseTimerCard}>
+          <Text style={styles.phaseTimerLabel}>CRONÔMETRO OPCIONAL · 3 MIN</Text>
+          <Text style={styles.phaseTimerValue}>{clockLabel(phaseRemaining)}</Text>
+          <TouchableOpacity
+            onPress={() => {
+              if (phaseRemaining === 0) setPhaseRemaining(initialSeconds);
+              setPhaseRunning((value) => !value);
+            }}
+            style={styles.phaseTimerButton}
+          >
+            <Text style={styles.phaseTimerButtonText}>
+              {phaseRunning ? 'Pausar' : phaseRemaining === 0 ? 'Repetir cronômetro' : phaseRemaining === initialSeconds ? 'Iniciar cronômetro' : 'Continuar cronômetro'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity onPress={() => void action()} style={styles.primaryButton}>
+          <Text style={styles.primaryButtonText}>{warmup ? 'Concluir aquecimento e iniciar treino' : 'Concluir resfriamento'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.phaseSelfReport}>Ao concluir, você confirma que realizou esta etapa de forma confortável.</Text>
+      </View>
+    );
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
@@ -298,7 +474,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         </View>
       </View>
 
-      {isCircuit && circuitRound != null ? (
+      {isCircuit && circuitRound != null && warmupCompleted && !allMainCompleted ? (
         <View style={styles.roundCard}>
           <Text style={styles.roundEyebrow}>CIRCUITO</Text>
           <Text style={styles.roundValue}>Round {circuitRound} de {rounds}</Text>
@@ -310,17 +486,28 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         <View style={[styles.progressBar, { width: `${progress}%` }]} />
       </View>
 
+      <WorkoutPhaseStrip exercises={session.exercises} activePhase={activePhase} compact />
+
       <WorkoutSessionControls
         token={token}
         sessionId={session.id}
         onAbandoned={() => {
           setWorkRunning(false);
+          setPhaseRunning(false);
           setRestRemaining(0);
+          void SecureStore.deleteItemAsync(phaseStorageKey(session.id)).catch(() => undefined);
           onSessionChange(null);
         }}
       />
 
-      {restRemaining > 0 ? (
+      {!phaseReady ? (
+        <View style={styles.phaseLoadingCard}>
+          <ActivityIndicator color={theme.colors.lime} />
+          <Text style={styles.phaseLoadingText}>Recuperando a fase da sessão...</Text>
+        </View>
+      ) : !warmupCompleted ? (
+        phaseCard('warmup')
+      ) : restRemaining > 0 && !allMainCompleted ? (
         <View style={styles.restCard}>
           <Text style={styles.restLabel}>{isCircuit && restRemaining > 20 ? 'DESCANSO ENTRE ROUNDS' : 'DESCANSO'}</Text>
           <Text style={styles.restValue}>{restRemaining}s</Text>
@@ -328,13 +515,19 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
             <Text style={styles.restButtonText}>Pular descanso</Text>
           </TouchableOpacity>
         </View>
-      ) : null}
-
-      {currentExercise && currentSet ? (
+      ) : currentExercise && currentSet && !allMainCompleted ? (
         <View style={styles.currentCard}>
           <Text style={styles.exerciseOrder}>EXERCÍCIO {currentExercise.order} DE {session.exercises.length}</Text>
           <Text style={styles.exerciseName}>{currentExercise.name}</Text>
           <Text style={styles.exerciseMuscle}>{currentExercise.primaryMuscle}</Text>
+
+          {nextExercise ? (
+            <View style={styles.nextCard}>
+              <Text style={styles.nextEyebrow}>DEPOIS DESTE</Text>
+              <Text style={styles.nextName}>{nextExercise.name}</Text>
+              <Text style={styles.nextMeta}>{nextExercise.primaryMuscle} · {nextExercise.plannedSets} blocos</Text>
+            </View>
+          ) : null}
 
           <View style={styles.targetRow}>
             <View style={styles.targetItem}>
@@ -458,9 +651,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
                   <Text style={styles.inputLabel}>Repetições</Text>
                   <TextInput value={reps} onChangeText={setReps} keyboardType="number-pad" style={styles.input} placeholder="10" />
                 </View>
-                <View style={styles.inputGroup}>
+                <View style={[styles.inputGroup, styles.loadGroup]}>
                   <Text style={styles.inputLabel}>Carga (kg)</Text>
-                  <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={styles.input} placeholder="0" />
+                  <View style={styles.loadControl}>
+                    <TouchableOpacity onPress={() => adjustLoad(-0.5)} style={styles.loadAdjustButton}>
+                      <Text style={styles.loadAdjustText}>−</Text>
+                    </TouchableOpacity>
+                    <TextInput value={loadKg} onChangeText={setLoadKg} keyboardType="decimal-pad" style={[styles.input, styles.loadInput]} placeholder="0" />
+                    <TouchableOpacity onPress={() => adjustLoad(0.5)} style={styles.loadAdjustButton}>
+                      <Text style={styles.loadAdjustText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.loadHint}>ajuste rápido ±0,5 kg</Text>
                 </View>
                 <View style={styles.inputGroup}>
                   <Text style={styles.inputLabel}>RIR</Text>
@@ -478,10 +680,12 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
             {saving ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Concluir bloco</Text>}
           </TouchableOpacity>
         </View>
+      ) : allMainCompleted && !cooldownCompleted ? (
+        phaseCard('cooldown')
       ) : (
         <View style={styles.finishCard}>
-          <Text style={styles.finishTitle}>Todos os blocos concluídos</Text>
-          <Text style={styles.finishText}>Registre o esforço geral da sessão para fechar o treino e alimentar seu histórico de evolução.</Text>
+          <Text style={styles.finishTitle}>Sessão completa</Text>
+          <Text style={styles.finishText}>Aquecimento, treino principal e resfriamento concluídos. Registre o esforço geral para fechar o treino e alimentar seu histórico de evolução.</Text>
 
           <Text style={styles.inputLabel}>Esforço geral (RPE 1–10)</Text>
           <TextInput value={perceivedEffort} onChangeText={setPerceivedEffort} keyboardType="number-pad" style={styles.fullInput} placeholder="7" />
@@ -494,19 +698,23 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Progresso da sessão</Text>
-      {session.exercises.map((exercise) => {
-        const done = exercise.sets.filter((set) => set.completed).length;
-        return (
-          <View key={exercise.id} style={styles.exerciseProgressRow}>
-            <View style={styles.exerciseProgressText}>
-              <Text style={styles.exerciseProgressName}>{exercise.order}. {exercise.name}</Text>
-              <Text style={styles.exerciseProgressMeta}>{done}/{exercise.plannedSets} blocos concluídos</Text>
-            </View>
-            <Text style={styles.exerciseProgressStatus}>{done === exercise.plannedSets ? '✓' : `${Math.round((done / exercise.plannedSets) * 100)}%`}</Text>
-          </View>
-        );
-      })}
+      {warmupCompleted ? (
+        <>
+          <Text style={styles.sectionTitle}>Progresso da sessão</Text>
+          {session.exercises.map((exercise) => {
+            const done = exercise.sets.filter((set) => set.completed).length;
+            return (
+              <View key={exercise.id} style={styles.exerciseProgressRow}>
+                <View style={styles.exerciseProgressText}>
+                  <Text style={styles.exerciseProgressName}>{exercise.order}. {exercise.name}</Text>
+                  <Text style={styles.exerciseProgressMeta}>{done}/{exercise.plannedSets} blocos concluídos</Text>
+                </View>
+                <Text style={styles.exerciseProgressStatus}>{done === exercise.plannedSets ? '✓' : `${Math.round((done / exercise.plannedSets) * 100)}%`}</Text>
+              </View>
+            );
+          })}
+        </>
+      ) : null}
 
       {session.safetyEvents?.length ? (
         <View style={styles.sessionEventsCard}>
@@ -546,10 +754,30 @@ const styles = StyleSheet.create({
   restValue: { color: theme.colors.white, fontSize: 42, fontWeight: '900', marginVertical: 4 },
   restButton: { paddingVertical: 8, paddingHorizontal: 16 },
   restButtonText: { color: '#C8D4E3', fontWeight: '800', fontSize: 12 },
+  phaseLoadingCard: { backgroundColor: theme.colors.navy, borderRadius: 18, padding: 18, marginBottom: 16, alignItems: 'center', gap: 9 },
+  phaseLoadingText: { color: theme.colors.white, fontSize: 11, fontWeight: '800' },
+  phaseExecutionCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
+  phaseExecutionEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
+  phaseExecutionTitle: { color: theme.colors.navy, fontSize: 23, fontWeight: '900', marginTop: 5 },
+  phaseExecutionText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5, marginBottom: 13 },
+  phaseStepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 9 },
+  phaseStepNumber: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#EDF3E2', alignItems: 'center', justifyContent: 'center' },
+  phaseStepNumberText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  phaseStepText: { flex: 1, color: theme.colors.text, fontSize: 11, lineHeight: 17 },
+  phaseTimerCard: { backgroundColor: '#0F2B4F', borderRadius: 16, padding: 14, alignItems: 'center', marginTop: 16 },
+  phaseTimerLabel: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
+  phaseTimerValue: { color: theme.colors.white, fontSize: 38, fontWeight: '900', marginVertical: 5 },
+  phaseTimerButton: { backgroundColor: '#24486F', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18 },
+  phaseTimerButtonText: { color: theme.colors.white, fontSize: 10, fontWeight: '900' },
+  phaseSelfReport: { color: theme.colors.textMuted, fontSize: 8, textAlign: 'center', marginTop: 7 },
   currentCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
   exerciseOrder: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   exerciseName: { color: theme.colors.navy, fontSize: 23, fontWeight: '900', marginTop: 6 },
   exerciseMuscle: { color: theme.colors.textMuted, fontSize: 12, marginTop: 3, textTransform: 'capitalize' },
+  nextCard: { backgroundColor: '#EEF4FA', borderRadius: 13, padding: 11, marginTop: 13, borderLeftWidth: 4, borderLeftColor: theme.colors.lime },
+  nextEyebrow: { color: theme.colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  nextName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900', marginTop: 2 },
+  nextMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   targetRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 16 },
   targetItem: { flex: 1 },
   targetValue: { color: theme.colors.text, fontWeight: '900', fontSize: 14 },
@@ -586,10 +814,16 @@ const styles = StyleSheet.create({
   suggestedLoadCard: { backgroundColor: '#EEF7DE', borderRadius: 12, padding: 12, marginBottom: 8 },
   suggestedLoadTitle: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
   suggestedLoadText: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 3 },
-  inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14 },
+  inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14, alignItems: 'flex-start' },
   inputGroup: { flex: 1 },
+  loadGroup: { flex: 1.45 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
-  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD' },
+  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD', minHeight: 45 },
+  loadControl: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  loadAdjustButton: { width: 34, minHeight: 45, borderRadius: 11, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center' },
+  loadAdjustText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', lineHeight: 22 },
+  loadInput: { flex: 1, textAlign: 'center', minWidth: 48 },
+  loadHint: { color: theme.colors.textMuted, fontSize: 7, textAlign: 'center', marginTop: 3 },
   fullInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: theme.colors.text, backgroundColor: '#F9FBFD' },
   feedbackInput: { minHeight: 84, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },

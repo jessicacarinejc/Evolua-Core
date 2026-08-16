@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { getExerciseGuidance } from '../workouts/exercise-guidance';
+import { resolveExerciseMedia } from '../workouts/exercise-media';
 import { theme } from '../theme';
 
 type Props = {
@@ -31,8 +32,8 @@ const poseEmoji: Record<string, string> = {
   lunge: '🧘',
 };
 
-function InlineVideo({ uri }: { uri: string }) {
-  const player = useVideoPlayer(uri);
+function InlineVideo({ source }: { source: string | number }) {
+  const player = useVideoPlayer(source);
   return (
     <VideoView
       player={player}
@@ -82,8 +83,8 @@ function GuidedMotion({ title }: { title: string }) {
   return (
     <View style={styles.guide}>
       <View style={styles.guideTopRow}>
-        <View>
-          <Text style={styles.guideEyebrow}>VÍDEO GUIADO · INICIANTE</Text>
+        <View style={styles.guideHeading}>
+          <Text style={styles.guideEyebrow}>GUIA DE MOVIMENTO · OFFLINE</Text>
           <Text style={styles.guideTitle}>Veja cada fase antes de executar</Text>
         </View>
         <TouchableOpacity onPress={() => setPlaying((value) => !value)} style={styles.playButton}>
@@ -130,27 +131,33 @@ function GuidedMotion({ title }: { title: string }) {
 }
 
 export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: Props) {
-  const isLocalGuide = videoUrl.startsWith('evolua-guide://');
-  const isAnimatedImage = /\.gif(?:\?|$)/i.test(videoUrl);
+  const media = resolveExerciseMedia(title, videoUrl);
+  const hasRealClip = media.kind === 'local-clip' || media.kind === 'remote-video' || media.kind === 'remote-image';
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>{title}</Text>
-      <GuidedMotion title={title} />
 
-      {!isLocalGuide ? (
+      {hasRealClip ? (
         <View style={styles.referenceWrap}>
-          <Text style={styles.referenceTitle}>Demonstração complementar</Text>
-          {isAnimatedImage ? (
-            <Image source={{ uri: videoUrl }} style={styles.media} resizeMode="contain" />
-          ) : (
-            <InlineVideo uri={videoUrl} />
-          )}
+          <Text style={styles.referenceTitle}>{media.kind === 'local-clip' ? 'Demonstração offline' : 'Demonstração complementar'}</Text>
+          {media.kind === 'remote-image' ? (
+            <Image source={{ uri: media.source }} style={styles.media} resizeMode="contain" />
+          ) : media.kind === 'local-clip' || media.kind === 'remote-video' ? (
+            <InlineVideo source={media.source} />
+          ) : null}
           {license ? <Text style={styles.meta}>Licença: {license}</Text> : null}
           {attribution ? <Text style={styles.meta}>Crédito: {attribution}</Text> : null}
-          {!license && !attribution ? <Text style={styles.warning}>Mídia complementar pendente de revisão de licença.</Text> : null}
+          {media.kind !== 'local-clip' && !license && !attribution ? <Text style={styles.warning}>Mídia complementar pendente de revisão de licença.</Text> : null}
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.clipPendingCard}>
+          <Text style={styles.clipPendingTitle}>Clipe real offline em preparação</Text>
+          <Text style={styles.clipPendingText}>Este guia não substitui o clipe final do exercício. A arquitetura já aceita vídeo local empacotado no APK; até o ativo real e licenciado entrar, use as fases abaixo como orientação complementar.</Text>
+        </View>
+      )}
+
+      <GuidedMotion title={title} />
     </View>
   );
 }
@@ -160,6 +167,7 @@ const styles = StyleSheet.create({
   title: { color: theme.colors.white, fontSize: 17, fontWeight: '900', marginBottom: 10 },
   guide: { backgroundColor: '#102A4D', borderRadius: 18, padding: 14 },
   guideTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  guideHeading: { flex: 1 },
   guideEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   guideTitle: { color: theme.colors.white, fontSize: 13, fontWeight: '900', marginTop: 3 },
   playButton: { backgroundColor: theme.colors.lime, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
@@ -183,8 +191,11 @@ const styles = StyleSheet.create({
   errorCard: { backgroundColor: '#402B35', borderRadius: 13, padding: 12, marginTop: 8 },
   errorTitle: { color: '#FFD08A', fontSize: 10, fontWeight: '900' },
   errorText: { color: '#F3DFE6', fontSize: 10, lineHeight: 16, marginTop: 4 },
-  referenceWrap: { marginTop: 12 },
+  referenceWrap: { marginBottom: 12 },
   referenceTitle: { color: '#C8D4E3', fontSize: 10, fontWeight: '900', marginBottom: 7 },
+  clipPendingCard: { backgroundColor: '#183B62', borderRadius: 14, padding: 12, marginBottom: 12 },
+  clipPendingTitle: { color: theme.colors.lime, fontSize: 10, fontWeight: '900' },
+  clipPendingText: { color: '#D2DEEB', fontSize: 9, lineHeight: 14, marginTop: 4 },
   media: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#07182C', borderRadius: 12 },
   meta: { color: '#C8D4E3', fontSize: 9, lineHeight: 14, marginTop: 5 },
   warning: { color: '#FFD5D5', fontSize: 9, lineHeight: 14, marginTop: 7 },
