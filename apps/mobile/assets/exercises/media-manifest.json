@@ -8,10 +8,32 @@
     "referenceMediaCountsAsFinal": false
   },
   "exercises": [
-    { "slug": "agachamento-goblet", "name": "Agachamento Goblet", "status": "pending" },
+    {
+      "slug": "agachamento-goblet",
+      "name": "Agachamento Goblet",
+      "status": "ready",
+      "sourceFile": "agachamento-goblet.mp4",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c3/Kettlebell_Goblet_Squat.webm",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Kettlebell_Goblet_Squat.webm",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Taco fleur / Wikimedia Commons",
+      "adapted": true
+    },
     { "slug": "leg-press-45", "name": "Leg Press 45°", "status": "pending" },
     { "slug": "hip-thrust", "name": "Hip Thrust", "status": "pending" },
-    { "slug": "mesa-flexora", "name": "Mesa Flexora", "status": "pending" },
+    {
+      "slug": "mesa-flexora",
+      "name": "Mesa Flexora",
+      "status": "ready",
+      "sourceFile": "mesa-flexora.mp4",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/1/14/Muscle_Strengthening_at_the_Gym_-_Leg_Curl.webm",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Muscle_Strengthening_at_the_Gym_-_Leg_Curl.webm",
+      "license": "Public Domain — U.S. CDC",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/File:Muscle_Strengthening_at_the_Gym_-_Leg_Curl.webm",
+      "attribution": "Centers for Disease Control and Prevention / Wikimedia Commons",
+      "adapted": true
+    },
     { "slug": "panturrilha-em-pe", "name": "Elevação de Panturrilha em Pé", "status": "pending" },
     { "slug": "supino-halteres", "name": "Supino com Halteres", "status": "pending" },
     { "slug": "remada-baixa", "name": "Remada Baixa no Cabo", "status": "pending" },
