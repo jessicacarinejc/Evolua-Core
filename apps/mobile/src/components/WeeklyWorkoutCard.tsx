@@ -61,8 +61,10 @@ function deltaLabel(current: number, previous: number, suffix = '') {
 }
 
 function RecentWorkoutComparison({ history }: { history: WorkoutHistoryItem[] }) {
-  if (history.length < 2) return null;
-  const [latest, previous] = history;
+  const latest = history[0];
+  const previous = history[1];
+  if (!latest || !previous) return null;
+
   return (
     <View style={styles.comparisonCard}>
       <Text style={styles.comparisonEyebrow}>EVOLUÇÃO RECENTE</Text>
