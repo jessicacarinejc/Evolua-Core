@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "runtime": "offline",
+    "requiredCoverage": "100%",
+    "finalMedia": "continuous instructional clip",
+    "screenshotsAsVideoAllowed": false,
+    "referenceMediaCountsAsFinal": false
+  },
+  "exercises": [
+    { "slug": "agachamento-goblet", "name": "Agachamento Goblet", "status": "pending" },
+    { "slug": "leg-press-45", "name": "Leg Press 45°", "status": "pending" },
+    { "slug": "hip-thrust", "name": "Hip Thrust", "status": "pending" },
+    { "slug": "mesa-flexora", "name": "Mesa Flexora", "status": "pending" },
+    { "slug": "panturrilha-em-pe", "name": "Elevação de Panturrilha em Pé", "status": "pending" },
+    { "slug": "supino-halteres", "name": "Supino com Halteres", "status": "pending" },
+    { "slug": "remada-baixa", "name": "Remada Baixa no Cabo", "status": "pending" },
+    { "slug": "puxada-frontal", "name": "Puxada Frontal", "status": "pending" },
+    { "slug": "desenvolvimento-halteres", "name": "Desenvolvimento com Halteres", "status": "pending" },
+    { "slug": "rosca-alternada", "name": "Rosca Alternada", "status": "pending" },
+    { "slug": "triceps-corda", "name": "Tríceps na Corda", "status": "pending" },
+    { "slug": "dead-bug", "name": "Dead Bug", "status": "pending" },
+    { "slug": "bird-dog", "name": "Bird Dog", "status": "pending" },
+    { "slug": "bicicleta-ergometrica", "name": "Bicicleta Ergométrica", "status": "pending" },
+    { "slug": "tai-chi-despertar-qi", "name": "Tai Chi — Despertar do Qi", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-maos-como-nuvens", "name": "Tai Chi — Mover as Mãos como Nuvens", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-repelir-macaco", "name": "Tai Chi — Repelir o Macaco", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-abracar-arvore", "name": "Tai Chi — Abraçar a Árvore", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-transferencia-equilibrio", "name": "Tai Chi — Transferência de Peso e Equilíbrio", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-caminhada-frente", "name": "Tai Chi Walking — Passos à Frente", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-caminhada-tras", "name": "Tai Chi Walking — Passos para Trás", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-chen-postura-arco", "name": "Tai Chi Chen — Postura do Arco", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-chen-empurrar-arco", "name": "Tai Chi Chen — Empurrar na Postura do Arco", "status": "pending", "referenceOnly": true },
+    { "slug": "tai-chi-yang-aparar-cauda-passaro", "name": "Tai Chi Yang — Aparar a Cauda do Pássaro", "status": "pending", "referenceOnly": true },
+    { "slug": "calistenia-flexao-braco", "name": "Flexão de Braço", "status": "pending", "referenceOnly": true },
+    { "slug": "calistenia-polichinelo", "name": "Polichinelo", "status": "pending", "referenceOnly": true },
+    { "slug": "calistenia-mergulho-banco", "name": "Mergulho no Banco", "status": "pending", "referenceOnly": true },
+    { "slug": "calistenia-joelhos-altos", "name": "Corrida Estacionária com Joelhos Altos", "status": "pending", "referenceOnly": true },
+    { "slug": "calistenia-flexao-diamante-joelhos", "name": "Flexão Diamante com Joelhos Apoiados", "status": "pending", "referenceOnly": true }
+  ]
+}
