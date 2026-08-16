@@ -55,7 +55,7 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
         Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
         Animated.timing(translate, { toValue: -6, duration: 150, useNativeDriver: true }),
       ]).start(() => {
-        setPhaseIndex((current) => (current + 1) % guidance.phases.length);
+        setPhaseIndex((current) => (current + 1) % Math.min(guidance.phases.length, 4));
         translate.setValue(6);
         Animated.parallel([
           Animated.timing(opacity, { toValue: 1, duration: 190, useNativeDriver: true }),
@@ -65,11 +65,6 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
     }, interval);
     return () => clearInterval(timer);
   }, [guidance.phases.length, opacity, playing, slow, translate]);
-
-  const goTo = (index: number) => {
-    setPhaseIndex(index);
-    setPlaying(false);
-  };
 
   const detailText = detailTab === 'beginner'
     ? guidance.beginnerTip
@@ -82,7 +77,7 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
       <View style={styles.guideTopRow}>
         <View style={styles.guideHeading}>
           <Text style={styles.guideEyebrow}>TÉCNICA GUIADA · 4 FASES</Text>
-          <Text style={styles.guideTitle}>Acompanhe posição, movimento, controle e retorno</Text>
+          <Text style={styles.guideTitle}>Veja o movimento e confira os pontos técnicos</Text>
         </View>
         <View style={styles.guideControls}>
           <TouchableOpacity onPress={() => setSlow((value) => !value)} style={[styles.speedButton, slow && styles.speedButtonActive]}>
@@ -108,7 +103,10 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
         {guidance.phases.slice(0, 4).map((item, index) => (
           <TouchableOpacity
             key={`${item.title}-${index}`}
-            onPress={() => goTo(index)}
+            onPress={() => {
+              setPhaseIndex(index);
+              setPlaying(false);
+            }}
             style={[styles.phaseDot, index === phaseIndex && styles.phaseDotActive]}
           >
             <Text style={[styles.phaseDotText, index === phaseIndex && styles.phaseDotTextActive]}>{index + 1}</Text>
@@ -117,15 +115,15 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
       </View>
 
       <View style={styles.detailTabs}>
-        <TouchableOpacity onPress={() => setDetailTab('technique')} style={[styles.detailTab, detailTab === 'technique' && styles.detailTabActive]}>
-          <Text style={[styles.detailTabText, detailTab === 'technique' && styles.detailTabTextActive]}>Técnica</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setDetailTab('beginner')} style={[styles.detailTab, detailTab === 'beginner' && styles.detailTabActive]}>
-          <Text style={[styles.detailTabText, detailTab === 'beginner' && styles.detailTabTextActive]}>Iniciante</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setDetailTab('errors')} style={[styles.detailTab, detailTab === 'errors' && styles.detailTabActive]}>
-          <Text style={[styles.detailTabText, detailTab === 'errors' && styles.detailTabTextActive]}>Erros</Text>
-        </TouchableOpacity>
+        {([
+          ['technique', 'Técnica'],
+          ['beginner', 'Iniciante'],
+          ['errors', 'Erros'],
+        ] as const).map(([key, label]) => (
+          <TouchableOpacity key={key} onPress={() => setDetailTab(key)} style={[styles.detailTab, detailTab === key && styles.detailTabActive]}>
+            <Text style={[styles.detailTabText, detailTab === key && styles.detailTabTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <View style={[styles.detailCard, detailTab === 'errors' && styles.detailCardWarning]}>
@@ -141,7 +139,11 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
 export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: Props) {
   const media = resolveExerciseMedia(title, videoUrl);
   const hasPlayableMedia = media.kind === 'local-clip' || media.kind === 'remote-video' || media.kind === 'remote-image';
-  const localAnimation = media.kind === 'local-clip';
+  const realisticLocal = media.kind === 'local-clip' && media.finalQuality === 'realistic-human-demo';
+  const localAnimation = media.kind === 'local-clip' && media.finalQuality === 'animated-fallback';
+  const effectiveLicense = media.kind === 'local-clip' ? media.license || license : license;
+  const effectiveAttribution = media.kind === 'local-clip' ? media.attribution || attribution : attribution;
+  const status = realisticLocal ? 'VÍDEO REAL OFFLINE' : localAnimation ? 'ANIMAÇÃO OFFLINE' : hasPlayableMedia ? 'DEMONSTRAÇÃO' : 'GUIA OFFLINE';
 
   return (
     <View style={styles.card}>
@@ -150,8 +152,8 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
           <Text style={styles.headerEyebrow}>COMO FAZER</Text>
           <Text style={styles.title}>{title}</Text>
         </View>
-        <View style={[styles.statusBadge, localAnimation && styles.statusBadgeAnimation]}>
-          <Text style={styles.statusBadgeText}>{localAnimation ? 'ANIMAÇÃO OFFLINE' : hasPlayableMedia ? 'DEMONSTRAÇÃO' : 'GUIA OFFLINE'}</Text>
+        <View style={[styles.statusBadge, localAnimation && styles.statusBadgeAnimation, realisticLocal && styles.statusBadgeReal]}>
+          <Text style={styles.statusBadgeText}>{status}</Text>
         </View>
       </View>
 
@@ -165,16 +167,22 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
             ) : null}
           </View>
 
-          {localAnimation ? (
-            <View style={styles.animationNotice}>
-              <Text style={styles.animationNoticeTitle}>Demonstração animada para esta homologação</Text>
-              <Text style={styles.animationNoticeText}>Este clipe é uma animação contínua própria do Evolua Core. Ele ajuda a visualizar o movimento, mas ainda não é o vídeo realista final no padrão definido para o produto.</Text>
+          {realisticLocal ? (
+            <View style={styles.realNotice}>
+              <Text style={styles.realNoticeTitle}>Demonstração humana realista auditada</Text>
+              <Text style={styles.realNoticeText}>O movimento e a licença desta mídia foram verificados antes de ela ser empacotada no APK.</Text>
             </View>
           ) : null}
 
-          {license ? <Text style={styles.meta}>Licença: {license}</Text> : null}
-          {attribution ? <Text style={styles.meta}>Crédito: {attribution}</Text> : null}
-          {media.kind !== 'local-clip' && !license && !attribution ? <Text style={styles.warning}>Mídia complementar pendente de revisão de licença.</Text> : null}
+          {localAnimation ? (
+            <View style={styles.animationNotice}>
+              <Text style={styles.animationNoticeTitle}>Demonstração animada temporária</Text>
+              <Text style={styles.animationNoticeText}>Este exercício ainda usa o fallback contínuo próprio do Evolua Core enquanto o vídeo humano correspondente não é aprovado.</Text>
+            </View>
+          ) : null}
+
+          {effectiveLicense ? <Text style={styles.meta}>Licença: {effectiveLicense}</Text> : null}
+          {effectiveAttribution ? <Text style={styles.meta}>Crédito: {effectiveAttribution}</Text> : null}
         </View>
       ) : (
         <View style={styles.clipPendingCard}>
@@ -196,7 +204,18 @@ const styles = StyleSheet.create({
   title: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 3 },
   statusBadge: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6, backgroundColor: '#21466F' },
   statusBadgeAnimation: { backgroundColor: '#5B4C1F' },
+  statusBadgeReal: { backgroundColor: '#17613A' },
   statusBadgeText: { color: theme.colors.white, fontSize: 7, fontWeight: '900', letterSpacing: 0.6 },
+  referenceWrap: { marginBottom: 12 },
+  mediaFrame: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#07182C', borderWidth: 1, borderColor: '#2C4B70' },
+  media: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#07182C' },
+  realNotice: { backgroundColor: '#153F2B', borderRadius: 13, padding: 11, marginTop: 9 },
+  realNoticeTitle: { color: '#B9F2C9', fontSize: 9, fontWeight: '900' },
+  realNoticeText: { color: '#D9F3E1', fontSize: 9, lineHeight: 14, marginTop: 4 },
+  animationNotice: { backgroundColor: '#3C331B', borderRadius: 13, padding: 11, marginTop: 9 },
+  animationNoticeTitle: { color: '#FFE19A', fontSize: 9, fontWeight: '900' },
+  animationNoticeText: { color: '#F2E7C8', fontSize: 9, lineHeight: 14, marginTop: 4 },
+  meta: { color: '#AFC0D4', fontSize: 8, lineHeight: 13, marginTop: 4 },
   guide: { backgroundColor: '#102A4D', borderRadius: 18, padding: 14 },
   guideTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
   guideHeading: { flex: 1 },
@@ -230,14 +249,6 @@ const styles = StyleSheet.create({
   detailCardWarning: { backgroundColor: '#402B35' },
   detailCardTitle: { color: theme.colors.lime, fontSize: 10, fontWeight: '900' },
   detailCardText: { color: '#E4ECF5', fontSize: 10, lineHeight: 16, marginTop: 4 },
-  referenceWrap: { marginBottom: 12 },
-  mediaFrame: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#07182C', borderWidth: 1, borderColor: '#2C4B70' },
-  media: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#07182C' },
-  animationNotice: { backgroundColor: '#3C331B', borderRadius: 13, padding: 11, marginTop: 9 },
-  animationNoticeTitle: { color: '#FFE19A', fontSize: 9, fontWeight: '900' },
-  animationNoticeText: { color: '#F2E7C8', fontSize: 9, lineHeight: 14, marginTop: 4 },
-  meta: { color: '#AFC0D4', fontSize: 8, lineHeight: 13, marginTop: 4 },
-  warning: { color: '#FFD5D5', fontSize: 9, lineHeight: 14, marginTop: 7 },
   clipPendingCard: { backgroundColor: '#183B62', borderRadius: 14, padding: 12, marginBottom: 12 },
   clipPendingTitle: { color: theme.colors.lime, fontSize: 10, fontWeight: '900' },
   clipPendingText: { color: '#D2DEEB', fontSize: 9, lineHeight: 14, marginTop: 4 },
