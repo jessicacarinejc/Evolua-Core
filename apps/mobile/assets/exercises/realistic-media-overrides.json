@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "exercises": [
+    {
+      "slug": "agachamento-goblet",
+      "sourceKind": "external-realistic",
+      "sourceFile": "agachamento-goblet-real.mp4",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c3/Kettlebell_Goblet_Squat.webm",
+      "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Kettlebell_Goblet_Squat.webm",
+      "finalQuality": "realistic-human-demo",
+      "motionMatch": "verified",
+      "licenseAudit": "verified",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Taco fleur — Kettlebell Goblet Squat (Wikimedia Commons); convertido para MP4 e sem áudio para uso offline no Evolua Core",
+      "adapted": true
+    },
+    {
+      "slug": "mesa-flexora",
+      "sourceKind": "external-realistic",
+      "sourceFile": "mesa-flexora-real.mp4",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/1/14/Muscle_Strengthening_at_the_Gym_-_Leg_Curl.webm",
+      "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Muscle_Strengthening_at_the_Gym_-_Leg_Curl.webm",
+      "finalQuality": "realistic-human-demo",
+      "motionMatch": "verified",
+      "licenseAudit": "verified",
+      "license": "Domínio público — obra do governo federal dos EUA (CDC)",
+      "attribution": "Centers for Disease Control and Prevention (CDC) — Muscle Strengthening at the Gym - Leg Curl; convertido para MP4 e sem áudio para uso offline no Evolua Core",
+      "adapted": true
+    }
+  ]
+}
