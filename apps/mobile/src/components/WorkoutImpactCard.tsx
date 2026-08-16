@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { WorkoutExercise, WorkoutSessionExercise } from '../api/client';
 import { calculateMuscleImpact } from '../workouts/workout-impact';
 import { theme } from '../theme';
+import { AnatomicalMuscleMap } from './AnatomicalMuscleMap';
 
 type ExerciseLike = WorkoutExercise | WorkoutSessionExercise;
 
@@ -11,13 +12,13 @@ type Props = {
 };
 
 function tone(percent: number) {
-  if (percent >= 72) return '#9DCC46';
-  if (percent >= 38) return '#5F8FC7';
-  return '#B8C7D9';
+  if (percent >= 72) return '#FF7A59';
+  if (percent >= 38) return '#FFB08C';
+  return '#F7D0BE';
 }
 
 function ExerciseImpactRow({ exercise }: { exercise: ExerciseLike }) {
-  const muscles = calculateMuscleImpact([exercise]).slice(0, 4);
+  const muscles = calculateMuscleImpact([exercise]).filter((muscle) => muscle.label !== 'Corpo inteiro').slice(0, 4);
   return (
     <View style={styles.exerciseImpactRow}>
       <View style={styles.exerciseImpactTop}>
@@ -39,63 +40,51 @@ function ExerciseImpactRow({ exercise }: { exercise: ExerciseLike }) {
 
 export function WorkoutImpactCard({ exercises, compact = false }: Props) {
   const impact = calculateMuscleImpact(exercises);
-  const upper = impact.filter((item) => item.area === 'upper');
-  const core = impact.filter((item) => item.area === 'core');
-  const lower = impact.filter((item) => item.area === 'lower');
-
-  const regionLevel = (items: typeof impact) => Math.max(0, ...items.map((item) => item.percent));
+  const visualImpact = impact.filter((item) => item.label !== 'Corpo inteiro');
 
   return (
     <View style={[styles.card, compact && styles.cardCompact]}>
       <View style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.eyebrow}>IMPACTO DO TREINO</Text>
-          <Text style={styles.title}>Músculos mais trabalhados</Text>
-          {!compact ? <Text style={styles.subtitle}>Estimativa baseada nos exercícios, blocos e duração planejados. Não representa dano muscular nem avaliação clínica.</Text> : null}
+          <Text style={styles.title}>Músculos trabalhados</Text>
+          {!compact ? (
+            <Text style={styles.subtitle}>Mapa anatômico frontal e posterior com intensidade estimada a partir dos exercícios planejados.</Text>
+          ) : null}
         </View>
-        <View style={styles.badge}><Text style={styles.badgeText}>MAPA</Text></View>
+        <View style={styles.badge}><Text style={styles.badgeText}>ANATOMIA</Text></View>
       </View>
 
-      <View style={styles.bodyRow}>
-        <View style={styles.bodyMap}>
-          <View style={[styles.head, { backgroundColor: '#DCE5EF' }]} />
-          <View style={[styles.shoulders, { backgroundColor: tone(regionLevel(upper)) }]} />
-          <View style={[styles.torso, { backgroundColor: tone(regionLevel(core)) }]} />
-          <View style={styles.hips} />
-          <View style={styles.legsRow}>
-            <View style={[styles.leg, { backgroundColor: tone(regionLevel(lower)) }]} />
-            <View style={[styles.leg, { backgroundColor: tone(regionLevel(lower)) }]} />
-          </View>
-          <View style={styles.legendMini}><Text style={styles.legendMiniText}>Visão resumida</Text></View>
+      <View style={styles.anatomyPanel}>
+        <AnatomicalMuscleMap impact={impact} />
+        <View style={styles.legend}>
+          <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#FF7A59' }]} /><Text style={styles.legendText}>principal</Text></View>
+          <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#FFB08C' }]} /><Text style={styles.legendText}>moderado</Text></View>
+          <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#F7D0BE' }]} /><Text style={styles.legendText}>apoio</Text></View>
         </View>
+      </View>
 
-        <View style={styles.list}>
-          {impact.slice(0, compact ? 5 : 7).map((item) => (
-            <View key={item.key} style={styles.row}>
-              <View style={styles.rowTop}>
-                <Text style={styles.muscle}>{item.label}</Text>
-                <Text style={[styles.level, { color: tone(item.percent) }]}>{item.level}</Text>
-              </View>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${item.percent}%`, backgroundColor: tone(item.percent) }]} />
-              </View>
+      <View style={styles.list}>
+        {visualImpact.slice(0, compact ? 5 : 7).map((item) => (
+          <View key={item.key} style={styles.row}>
+            <View style={styles.rowTop}>
+              <Text style={styles.muscle}>{item.label}</Text>
+              <Text style={[styles.level, { color: tone(item.percent) }]}>{item.level}</Text>
             </View>
-          ))}
-        </View>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${item.percent}%`, backgroundColor: tone(item.percent) }]} />
+            </View>
+          </View>
+        ))}
       </View>
 
       {!compact ? (
         <>
-          <View style={styles.legend}>
-            <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#9DCC46' }]} /><Text style={styles.legendText}>principal</Text></View>
-            <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#5F8FC7' }]} /><Text style={styles.legendText}>moderado</Text></View>
-            <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#B8C7D9' }]} /><Text style={styles.legendText}>apoio</Text></View>
-          </View>
-
+          <Text style={styles.disclaimer}>Estimativa funcional de estímulo. Não representa dano muscular nem avaliação clínica.</Text>
           <View style={styles.perExerciseSection}>
             <Text style={styles.perExerciseEyebrow}>POR EXERCÍCIO</Text>
             <Text style={styles.perExerciseTitle}>Onde cada movimento trabalha mais</Text>
-            <Text style={styles.perExerciseSubtitle}>O músculo principal vem do cadastro do exercício; os apoios são uma estimativa funcional para ajudar a entender a sessão.</Text>
+            <Text style={styles.perExerciseSubtitle}>Abra a leitura por exercício para entender os grupos principais e de apoio, no mesmo fluxo da prévia do treino.</Text>
             {exercises.map((exercise) => <ExerciseImpactRow key={exercise.id} exercise={exercise} />)}
           </View>
         </>
@@ -105,47 +94,39 @@ export function WorkoutImpactCard({ exercises, compact = false }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#0F2B4F', borderRadius: 22, padding: 17, marginBottom: 16 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 22, padding: 17, marginBottom: 16, borderWidth: 1, borderColor: '#E1E6EC' },
   cardCompact: { padding: 14 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   headerText: { flex: 1 },
-  eyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  title: { color: theme.colors.white, fontSize: 18, fontWeight: '900', marginTop: 4 },
-  subtitle: { color: '#C8D4E3', fontSize: 10, lineHeight: 15, marginTop: 5 },
-  badge: { backgroundColor: '#203F66', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
-  badgeText: { color: theme.colors.lime, fontSize: 8, fontWeight: '900' },
-  bodyRow: { flexDirection: 'row', gap: 15, marginTop: 15, alignItems: 'center' },
-  bodyMap: { width: 92, alignItems: 'center', paddingVertical: 8 },
-  head: { width: 24, height: 24, borderRadius: 12, marginBottom: 4 },
-  shoulders: { width: 70, height: 20, borderRadius: 12 },
-  torso: { width: 48, height: 66, borderBottomLeftRadius: 18, borderBottomRightRadius: 18, borderTopLeftRadius: 8, borderTopRightRadius: 8, marginTop: -2 },
-  hips: { width: 43, height: 13, borderRadius: 8, backgroundColor: '#6B7F96', marginTop: 2 },
-  legsRow: { flexDirection: 'row', gap: 7, marginTop: 3 },
-  leg: { width: 17, height: 62, borderRadius: 10 },
-  legendMini: { marginTop: 7 },
-  legendMiniText: { color: '#8FA3BA', fontSize: 8, fontWeight: '700' },
-  list: { flex: 1, gap: 9 },
-  row: { gap: 4 },
-  rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  muscle: { color: '#F2F6FA', fontSize: 11, fontWeight: '800', flex: 1 },
-  level: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase' },
-  track: { height: 6, borderRadius: 6, backgroundColor: '#243F61', overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 6 },
-  legend: { flexDirection: 'row', gap: 13, marginTop: 13, paddingTop: 11, borderTopWidth: 1, borderTopColor: '#284564' },
+  eyebrow: { color: '#F26D4A', fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+  title: { color: theme.colors.navy, fontSize: 19, fontWeight: '900', marginTop: 4 },
+  subtitle: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 5 },
+  badge: { backgroundColor: '#FFF0EA', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
+  badgeText: { color: '#E65E3D', fontSize: 8, fontWeight: '900' },
+  anatomyPanel: { backgroundColor: '#F7F9FB', borderRadius: 18, paddingVertical: 12, paddingHorizontal: 10, marginTop: 14, borderWidth: 1, borderColor: '#E7EBEF' },
+  legend: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginTop: 8 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  legendText: { color: '#AFC0D1', fontSize: 8, fontWeight: '700' },
-  perExerciseSection: { marginTop: 15, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#284564' },
-  perExerciseEyebrow: { color: theme.colors.lime, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
-  perExerciseTitle: { color: theme.colors.white, fontSize: 15, fontWeight: '900', marginTop: 3 },
-  perExerciseSubtitle: { color: '#AFC0D1', fontSize: 9, lineHeight: 14, marginTop: 4, marginBottom: 6 },
-  exerciseImpactRow: { paddingVertical: 11, borderTopWidth: 1, borderTopColor: '#203F61' },
+  legendText: { color: theme.colors.textMuted, fontSize: 8, fontWeight: '700' },
+  list: { gap: 9, marginTop: 14 },
+  row: { gap: 4 },
+  rowTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  muscle: { color: theme.colors.navy, fontSize: 11, fontWeight: '800', flex: 1 },
+  level: { fontSize: 8, fontWeight: '900', textTransform: 'uppercase' },
+  track: { height: 6, borderRadius: 6, backgroundColor: '#E9EDF2', overflow: 'hidden' },
+  fill: { height: 6, borderRadius: 6 },
+  disclaimer: { color: theme.colors.textMuted, fontSize: 8, lineHeight: 13, marginTop: 12 },
+  perExerciseSection: { marginTop: 15, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#E7EBEF' },
+  perExerciseEyebrow: { color: '#F26D4A', fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  perExerciseTitle: { color: theme.colors.navy, fontSize: 15, fontWeight: '900', marginTop: 3 },
+  perExerciseSubtitle: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 4, marginBottom: 6 },
+  exerciseImpactRow: { paddingVertical: 11, borderTopWidth: 1, borderTopColor: '#EDF0F3' },
   exerciseImpactTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, alignItems: 'center' },
-  exerciseImpactName: { color: '#F2F6FA', fontSize: 11, fontWeight: '900', flex: 1 },
-  exerciseImpactPrimary: { color: '#8FA3BA', fontSize: 8, textTransform: 'capitalize' },
+  exerciseImpactName: { color: theme.colors.navy, fontSize: 11, fontWeight: '900', flex: 1 },
+  exerciseImpactPrimary: { color: theme.colors.textMuted, fontSize: 8, textTransform: 'capitalize' },
   exerciseMuscleChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 7 },
-  exerciseMuscleChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 4, backgroundColor: '#173558' },
+  exerciseMuscleChip: { flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 4, backgroundColor: '#FFFDFC' },
   exerciseMuscleDot: { width: 5, height: 5, borderRadius: 3 },
-  exerciseMuscleChipText: { color: '#E6EEF6', fontSize: 8, fontWeight: '800' },
+  exerciseMuscleChipText: { color: theme.colors.navy, fontSize: 8, fontWeight: '800' },
   exerciseMuscleLevel: { fontSize: 6, fontWeight: '900', textTransform: 'uppercase' },
 });
