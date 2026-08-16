@@ -1,7 +1,9 @@
-import { generatedLocalExerciseClips } from './exercise-media.generated';
+import { generatedLocalExerciseMedia } from './exercise-media.generated';
+
+export type LocalExerciseMediaQuality = 'realistic-human-demo' | 'animated-fallback';
 
 export type ExerciseMedia =
-  | { kind: 'local-clip'; source: number }
+  | { kind: 'local-clip'; source: number; finalQuality: LocalExerciseMediaQuality; license?: string; attribution?: string }
   | { kind: 'remote-video'; source: string }
   | { kind: 'remote-image'; source: string }
   | { kind: 'guided-fallback' };
@@ -16,18 +18,21 @@ function keyOf(name: string) {
 }
 
 /**
- * O registro efetivo de clipes locais é gerado no GitHub Actions a partir do
- * manifesto auditado. Isso permite empacotar MP4s no APK sem depender da
- * internet durante o uso e sem versionar binários grandes no repositório.
- *
- * Não usamos sequências de prints como vídeo final. Enquanto um clipe real
- * não existir, a tela mantém a demonstração animada contínua como fallback.
+ * O registro efetivo de mídia local é gerado no GitHub Actions a partir do
+ * manifesto e dos overrides auditados. O player recebe também a qualidade da
+ * mídia para não confundir animação procedural com demonstração humana realista.
  */
-const localExerciseClips: Record<string, number> = generatedLocalExerciseClips;
-
 export function resolveExerciseMedia(name: string, videoUrl?: string | null): ExerciseMedia {
-  const local = localExerciseClips[keyOf(name)];
-  if (local != null) return { kind: 'local-clip', source: local };
+  const local = generatedLocalExerciseMedia[keyOf(name)];
+  if (local != null) {
+    return {
+      kind: 'local-clip',
+      source: local.source,
+      finalQuality: local.finalQuality,
+      license: local.license,
+      attribution: local.attribution,
+    };
+  }
 
   if (!videoUrl || videoUrl.startsWith('evolua-guide://')) {
     return { kind: 'guided-fallback' };
