@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "provider": "Pixabay",
+  "licensePage": "https://pixabay.com/service/license-summary/",
+  "policy": {
+    "humanDemoPreferred": true,
+    "exactExerciseMatchRequired": true,
+    "genericGymFootageAllowed": false,
+    "animationAllowedAsFinal": false,
+    "runtime": "offline",
+    "storeSourcePageAndAuthor": true
+  },
+  "candidates": [
+    {
+      "slug": "leg-press-45",
+      "name": "Leg Press 45°",
+      "sourcePageUrl": "https://pixabay.com/pt/videos/academia-fitness-pernas-leg-press-20422/",
+      "author": "freefitnessmedia",
+      "providerLicense": "Pixabay Content License",
+      "mediaType": "MP4",
+      "resolution": "1920x1080",
+      "humanDemo": true,
+      "motionMatch": "page-title-and-tags-exact",
+      "status": "approved-source-page-needs-offline-file"
+    },
+    {
+      "slug": "calistenia-flexao-braco",
+      "name": "Flexão de Braço",
+      "sourcePageUrl": "https://pixabay.com/videos/push-ups-pushup-press-up-13134/",
+      "author": "tacofleur",
+      "providerLicense": "Pixabay Content License",
+      "mediaType": "MP4",
+      "resolution": "1920x1080",
+      "humanDemo": true,
+      "motionMatch": "page-title-and-tags-exact",
+      "status": "approved-source-page-needs-offline-file"
+    },
+    {
+      "slug": "calistenia-polichinelo",
+      "name": "Polichinelo",
+      "sourcePageUrl": "https://pixabay.com/videos/jumping-jacks-burpees-burpee-12963/",
+      "author": "tacofleur",
+      "providerLicense": "Pixabay Content License",
+      "mediaType": "MP4",
+      "humanDemo": true,
+      "motionMatch": "candidate-needs-clip-range-review",
+      "status": "candidate-source-page-needs-motion-review"
+    }
+  ]
+}

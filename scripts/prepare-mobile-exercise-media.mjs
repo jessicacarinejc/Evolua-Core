@@ -26,6 +26,10 @@ function run(command, args) {
   execFileSync(command, args, { stdio: 'inherit', cwd: root });
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function keyOf(value) {
   return String(value ?? '')
     .normalize('NFD')
@@ -45,14 +49,36 @@ function runFfmpeg(input, output, item) {
 }
 
 async function download(url, target) {
-  const response = await fetch(url, {
-    redirect: 'follow',
-    headers: { 'user-agent': 'Evolua-Core-Homologation-Build/1.0 (exercise media preparation)' },
-  });
-  if (!response.ok) throw new Error(`Falha ao baixar mídia (${response.status}) ${url}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (bytes.length < 1024) throw new Error(`Mídia muito pequena/possivelmente inválida: ${url}`);
-  await writeFile(target, bytes);
+  const retryable = new Set([408, 425, 429, 500, 502, 503, 504]);
+  const maxAttempts = 5;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(url, {
+      redirect: 'follow',
+      headers: {
+        'user-agent': 'Evolua-Core-Homologation-Build/1.0 (contact: github.com/jessicacarinejc/Evolua-Core)',
+        accept: '*/*',
+      },
+    });
+
+    if (response.ok) {
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.length < 1024) throw new Error(`Mídia muito pequena/possivelmente inválida: ${url}`);
+      await writeFile(target, bytes);
+      return;
+    }
+
+    if (!retryable.has(response.status) || attempt === maxAttempts) {
+      throw new Error(`Falha ao baixar mídia (${response.status}) ${url}`);
+    }
+
+    const retryAfterSeconds = Number(response.headers.get('retry-after'));
+    const delay = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? retryAfterSeconds * 1000
+      : 1500 * (2 ** (attempt - 1));
+    console.warn(`[exercise-media] fonte respondeu ${response.status}; nova tentativa ${attempt + 1}/${maxAttempts} em ${delay}ms...`);
+    await sleep(delay);
+  }
 }
 
 const generatedEntries = [];
@@ -86,6 +112,7 @@ try {
         await download(sourceUrl, source);
         console.log(`[exercise-media] convertendo ${item.name} para MP4 offline...`);
         runFfmpeg(source, target, item);
+        await sleep(1200);
       }
     }
 
