@@ -54,6 +54,7 @@ jobs:
           node --check scripts/smoke-local-homologation.mjs
           node --check scripts/e2e-local-homologation.mjs
           node --check scripts/audit-local-media.mjs
+          node --check scripts/prepare-anatomy-asset.mjs
 
       - name: Validar Docker Compose de desenvolvimento
         run: docker compose config >/dev/null
