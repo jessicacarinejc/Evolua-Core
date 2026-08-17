@@ -12,6 +12,18 @@
   },
   "candidates": [
     {
+      "slug": "leg-press-45",
+      "name": "Leg Press 45°",
+      "sourcePageUrl": "https://pixabay.com/pt/videos/academia-fitness-pernas-leg-press-20422/",
+      "author": "freefitnessmedia",
+      "providerLicense": "Pixabay Content License",
+      "mediaType": "MP4",
+      "resolution": "1920x1080",
+      "humanDemo": true,
+      "motionMatch": "page-title-and-tags-exact",
+      "status": "approved-source-page-needs-offline-file"
+    },
+    {
       "slug": "calistenia-flexao-braco",
       "name": "Flexão de Braço",
       "sourcePageUrl": "https://pixabay.com/videos/push-ups-pushup-press-up-13134/",
