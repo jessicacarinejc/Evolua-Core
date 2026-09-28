@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evolua Core",
     "slug": "evolua-core",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -32,7 +32,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "br.com.evoluacore.app",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "icon": "./assets/brand/icon.png",
       "config": {
         "usesNonExemptEncryption": false
@@ -40,7 +40,7 @@
     },
     "android": {
       "package": "br.com.evoluacore.app",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/icon.png",
         "backgroundColor": "#FFFFFF"

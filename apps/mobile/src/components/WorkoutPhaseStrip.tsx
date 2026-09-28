@@ -58,12 +58,12 @@ export function WorkoutPhaseStrip({ exercises, activePhase, compact = false }: P
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: theme.colors.white, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, padding: 16, marginBottom: 15 },
+  card: { backgroundColor: theme.colors.surface, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, padding: 16, marginBottom: 15 },
   compactCard: { padding: 12, marginBottom: 12 },
   heading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 },
   eyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  title: { color: theme.colors.navy, fontSize: 17, fontWeight: '900', marginTop: 3 },
-  total: { color: theme.colors.navy, backgroundColor: '#EDF3E2', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, fontSize: 10, fontWeight: '900' },
+  title: { color: theme.colors.textStrong, fontSize: 17, fontWeight: '900', marginTop: 3 },
+  total: { color: theme.colors.textStrong, backgroundColor: theme.colors.tintSurface, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, fontSize: 10, fontWeight: '900' },
   row: { flexDirection: 'row', alignItems: 'center' },
   phaseWrap: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   phase: { flex: 1, alignItems: 'center', minWidth: 0 },
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   iconText: { color: theme.colors.textMuted, fontSize: 12, fontWeight: '900' },
   iconTextActive: { color: theme.colors.navyDark },
   label: { color: theme.colors.textMuted, fontSize: 9, fontWeight: '800', textAlign: 'center' },
-  labelActive: { color: theme.colors.navy, fontWeight: '900' },
+  labelActive: { color: theme.colors.textStrong, fontWeight: '900' },
   minutes: { color: '#94A0B0', fontSize: 8, marginTop: 2 },
   minutesActive: { color: theme.colors.lime, fontWeight: '900' },
   connector: { width: 10, height: 2, backgroundColor: '#DDE5ED', marginHorizontal: -2, marginTop: -24 },

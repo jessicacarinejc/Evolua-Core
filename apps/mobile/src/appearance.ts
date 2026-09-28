@@ -1,0 +1,25 @@
+import * as SecureStore from 'expo-secure-store';
+import { Appearance } from 'react-native';
+
+export type AppearancePreference = 'system' | 'light' | 'dark';
+
+const APPEARANCE_KEY = 'evolua_core_appearance_preference';
+const VALID = new Set<AppearancePreference>(['system', 'light', 'dark']);
+
+export function applyAppearancePreference(preference: AppearancePreference) {
+  Appearance.setColorScheme(preference === 'system' ? null : preference);
+}
+
+export async function loadAppearancePreference(): Promise<AppearancePreference> {
+  const saved = await SecureStore.getItemAsync(APPEARANCE_KEY);
+  const preference = saved && VALID.has(saved as AppearancePreference)
+    ? saved as AppearancePreference
+    : 'system';
+  applyAppearancePreference(preference);
+  return preference;
+}
+
+export async function saveAppearancePreference(preference: AppearancePreference) {
+  await SecureStore.setItemAsync(APPEARANCE_KEY, preference);
+  applyAppearancePreference(preference);
+}

@@ -9,8 +9,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useColorScheme,
 } from 'react-native';
 import { api, DailyCheckinInput, DailyCheckinResult } from './src/api/client';
+import { AppearancePreference, loadAppearancePreference, saveAppearancePreference } from './src/appearance';
 import { sessionStore } from './src/auth/session';
 import { OnboardingData } from './src/onboarding/types';
 import { AssistantScreen } from './src/screens/AssistantScreen';
@@ -109,6 +111,8 @@ export default function App() {
   const [recovery, setRecovery] = useState<Recovery>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootRetrying, setBootRetrying] = useState(false);
+  const [appearancePreference, setAppearancePreference] = useState<AppearancePreference>('system');
+  const colorScheme = useColorScheme();
 
   const restoreSession = async () => {
     setBootRetrying(true);
@@ -137,6 +141,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    void loadAppearancePreference().then(setAppearancePreference);
     void restoreSession();
   }, []);
 
@@ -168,6 +173,11 @@ export default function App() {
     }
   };
 
+  const handleAppearanceChange = async (next: AppearancePreference) => {
+    setAppearancePreference(next);
+    await saveAppearancePreference(next);
+  };
+
   const handleCheckin = async (input: DailyCheckinInput) => {
     if (!token) throw new Error('Sessão não encontrada. Entre novamente.');
     const result = await api.saveDailyCheckin(token, input);
@@ -192,8 +202,8 @@ export default function App() {
     if (activeTab === 'Nutrição') return <NutritionScreen profile={profile} token={token} />;
     if (activeTab === 'Assistente') return <AssistantScreen token={token} />;
     if (activeTab === 'Evolução') return <ProgressScreen token={token} />;
-    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} />;
-  }, [activeTab, profile, recovery, token]);
+    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} appearancePreference={appearancePreference} onAppearanceChange={handleAppearanceChange} />;
+  }, [activeTab, profile, recovery, token, appearancePreference]);
 
   if (stage === 'boot') {
     return (
@@ -223,7 +233,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
       <View style={styles.app}>{screen}</View>
       <View style={styles.tabBar}>
         {tabs.map((tab) => {
@@ -243,8 +253,8 @@ export default function App() {
 const styles = StyleSheet.create({
   boot: { flex: 1, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   bootText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', letterSpacing: 1.6 },
-  bootErrorCard: { width: '100%', maxWidth: 420, backgroundColor: theme.colors.white, borderRadius: theme.radius.lg, padding: 18, marginTop: 8 },
-  bootErrorTitle: { color: theme.colors.navy, fontSize: 17, fontWeight: '900' },
+  bootErrorCard: { width: '100%', maxWidth: 420, backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: 18, marginTop: 8 },
+  bootErrorTitle: { color: theme.colors.textStrong, fontSize: 17, fontWeight: '900' },
   bootErrorText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8 },
   bootRetryButton: { backgroundColor: theme.colors.lime, borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginTop: 16 },
   bootRetryButtonText: { color: theme.colors.navyDark, fontWeight: '900' },
@@ -256,7 +266,7 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.xl },
   brandMark: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   brandMarkText: { color: theme.colors.lime, fontWeight: '900', fontSize: 18 },
-  brandName: { color: theme.colors.navy, fontWeight: '900', fontSize: 17, letterSpacing: 1.2 },
+  brandName: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 17, letterSpacing: 1.2 },
   brandTagline: { color: theme.colors.textMuted, marginTop: 2, fontSize: 11 },
   hello: { color: theme.colors.text, fontSize: 28, fontWeight: '800' },
   subtitle: { color: theme.colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 20 },
@@ -268,7 +278,7 @@ const styles = StyleSheet.create({
   heroStatLabel: { color: '#B9C8DA', fontSize: 10, marginTop: 3, maxWidth: 100 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center' },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
-  infoCard: { backgroundColor: '#EEF7DE', borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
+  infoCard: { backgroundColor: theme.colors.tintSurface, borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
   assistantCard: { flexDirection: 'row', gap: 12, alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: 16, marginTop: 14, borderWidth: 1, borderColor: theme.colors.border },
   assistantBadge: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.navy },
   assistantBadgeText: { color: theme.colors.lime, fontWeight: '900', fontSize: 16 },
@@ -276,13 +286,13 @@ const styles = StyleSheet.create({
   cardEyebrow: { color: theme.colors.lime, fontWeight: '900', fontSize: 11, letterSpacing: 1.4 },
   cardTitle: { color: theme.colors.text, fontWeight: '800', fontSize: 18, marginTop: 3 },
   cardBody: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5 },
-  noticeCard: { backgroundColor: '#EDF3E2', borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
-  noticeTitle: { color: theme.colors.navy, fontSize: 14, fontWeight: '900' },
+  noticeCard: { backgroundColor: theme.colors.tintSurface, borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
+  noticeTitle: { color: theme.colors.textStrong, fontSize: 14, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5 },
-  tabBar: { flexDirection: 'row', backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 8, paddingBottom: 8 },
+  tabBar: { flexDirection: 'row', backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 8, paddingBottom: 8 },
   tabItem: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 2 },
   tabDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: '#CAD2DC', marginBottom: 4 },
   tabDotActive: { width: 16, backgroundColor: theme.colors.lime },
   tabText: { color: theme.colors.textMuted, fontSize: 9, fontWeight: '700' },
-  tabTextActive: { color: theme.colors.navy, fontWeight: '900' },
+  tabTextActive: { color: theme.colors.textStrong, fontWeight: '900' },
 });
