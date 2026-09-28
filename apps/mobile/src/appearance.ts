@@ -6,8 +6,11 @@ export type AppearancePreference = 'system' | 'light' | 'dark';
 const APPEARANCE_KEY = 'evolua_core_appearance_preference';
 const VALID = new Set<AppearancePreference>(['system', 'light', 'dark']);
 
+type SetColorScheme = (scheme: 'light' | 'dark' | null) => void;
+
 export function applyAppearancePreference(preference: AppearancePreference) {
-  Appearance.setColorScheme(preference === 'system' ? null : preference);
+  const setColorScheme = Appearance.setColorScheme as SetColorScheme;
+  setColorScheme(preference === 'system' ? null : preference);
 }
 
 export async function loadAppearancePreference(): Promise<AppearancePreference> {
