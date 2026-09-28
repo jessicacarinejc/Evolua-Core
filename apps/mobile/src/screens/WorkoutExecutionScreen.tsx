@@ -37,6 +37,14 @@ const safetyTypeLabels: Record<SafetyInputType, string> = {
   other: 'Outro sintoma',
 };
 
+const quickFeedbackOptions = [
+  { label: 'Muito fácil', rpe: '3' },
+  { label: 'Fácil', rpe: '5' },
+  { label: 'Adequado', rpe: '7' },
+  { label: 'Difícil', rpe: '8' },
+  { label: 'Muito difícil', rpe: '9' },
+] as const;
+
 function asNumber(value: string) {
   const normalized = value.replace(',', '.').trim();
   if (!normalized) return undefined;
@@ -74,6 +82,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const [restRemaining, setRestRemaining] = useState(0);
   const [workRemaining, setWorkRemaining] = useState(0);
   const [workRunning, setWorkRunning] = useState(false);
+  const [prepareRemaining, setPrepareRemaining] = useState(0);
   const [perceivedEffort, setPerceivedEffort] = useState('7');
   const [feedback, setFeedback] = useState('');
   const [showSafetyPanel, setShowSafetyPanel] = useState(false);
@@ -186,6 +195,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   }, [workRemaining, workRunning]);
 
   useEffect(() => {
+    if (!isCircuit || prepareRemaining <= 0 || !currentExercise?.durationSeconds || restRemaining > 0) return;
+    const timer = setInterval(() => {
+      setPrepareRemaining((value) => {
+        const next = Math.max(0, value - 1);
+        if (next === 0) setWorkRunning(true);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentExercise?.id, isCircuit, prepareRemaining, restRemaining]);
+
+  useEffect(() => {
     if (!phaseRunning || phaseRemaining <= 0) return;
     const timer = setInterval(() => {
       setPhaseRemaining((value) => {
@@ -212,6 +233,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     setReps(previous?.repetitions != null ? String(previous.repetitions) : String(currentExercise.repsMin ?? ''));
     setRir(previous?.rir != null ? String(previous.rir) : String(currentExercise.targetRir ?? ''));
     setWorkRemaining(currentExercise.durationSeconds ?? 0);
+    setPrepareRemaining(isCircuit && currentExercise.durationSeconds ? 5 : 0);
     setWorkRunning(false);
     setSubstitutions([]);
     setShowSafetyPanel(false);
@@ -511,9 +533,21 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         <View style={styles.restCard}>
           <Text style={styles.restLabel}>{isCircuit && restRemaining > 20 ? 'DESCANSO ENTRE ROUNDS' : 'DESCANSO'}</Text>
           <Text style={styles.restValue}>{restRemaining}s</Text>
-          <TouchableOpacity onPress={() => setRestRemaining(0)} style={styles.restButton}>
-            <Text style={styles.restButtonText}>Pular descanso</Text>
-          </TouchableOpacity>
+          {currentExercise ? (
+            <View style={styles.restNextCard}>
+              <Text style={styles.restNextEyebrow}>PRÓXIMO</Text>
+              <Text style={styles.restNextName}>{currentExercise.name}</Text>
+              <Text style={styles.restNextMeta}>{currentExercise.primaryMuscle}</Text>
+            </View>
+          ) : null}
+          <View style={styles.restActions}>
+            <TouchableOpacity onPress={() => setRestRemaining((value) => value + 30)} style={styles.restSecondaryButton}>
+              <Text style={styles.restSecondaryButtonText}>+30 segundos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setRestRemaining(0)} style={styles.restButton}>
+              <Text style={styles.restButtonText}>Pular</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : currentExercise && currentSet && !allMainCompleted ? (
         <View style={styles.currentCard}>
@@ -624,18 +658,37 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.durationSeconds ? (
             <View style={styles.timedCard}>
-              <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
-              <Text style={styles.timedValue}>{workRemaining}s</Text>
-              {workRemaining > 0 ? (
-                <TouchableOpacity
-                  disabled={restRemaining > 0}
-                  onPress={() => setWorkRunning((value) => !value)}
-                  style={[styles.timerButton, restRemaining > 0 && styles.disabled]}
-                >
-                  <Text style={styles.timerButtonText}>{workRunning ? 'Pausar' : workRemaining === currentExercise.durationSeconds ? 'Iniciar' : 'Continuar'}</Text>
-                </TouchableOpacity>
+              {prepareRemaining > 0 ? (
+                <>
+                  <Text style={styles.prepareEyebrow}>PREPARE-SE</Text>
+                  <Text style={styles.prepareValue}>{prepareRemaining}</Text>
+                  <Text style={styles.prepareText}>O exercício começa automaticamente quando a contagem chegar a zero.</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPrepareRemaining(0);
+                      setWorkRunning(true);
+                    }}
+                    style={styles.prepareSkipButton}
+                  >
+                    <Text style={styles.prepareSkipButtonText}>Começar agora</Text>
+                  </TouchableOpacity>
+                </>
               ) : (
-                <Text style={styles.timedText}>Tempo cumprido. Registre o bloco para avançar.</Text>
+                <>
+                  <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
+                  <Text style={styles.timedValue}>{workRemaining}s</Text>
+                  {workRemaining > 0 ? (
+                    <TouchableOpacity
+                      disabled={restRemaining > 0}
+                      onPress={() => setWorkRunning((value) => !value)}
+                      style={[styles.timerButton, restRemaining > 0 && styles.disabled]}
+                    >
+                      <Text style={styles.timerButtonText}>{workRunning ? 'Pausar' : workRemaining === currentExercise.durationSeconds ? 'Iniciar' : 'Continuar'}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.timedText}>Tempo cumprido. Toque em concluir para avançar com segurança.</Text>
+                  )}
+                </>
               )}
             </View>
           ) : (
@@ -687,9 +740,27 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <Text style={styles.finishTitle}>Sessão completa</Text>
           <Text style={styles.finishText}>Aquecimento, treino principal e resfriamento concluídos. Registre o esforço geral para fechar o treino e alimentar seu histórico de evolução.</Text>
 
+          <Text style={styles.inputLabel}>Como foi o treino?</Text>
+          <View style={styles.quickFeedbackWrap}>
+            {quickFeedbackOptions.map((option) => {
+              const selected = feedback === option.label;
+              return (
+                <TouchableOpacity
+                  key={option.label}
+                  onPress={() => {
+                    setFeedback(option.label);
+                    setPerceivedEffort(option.rpe);
+                  }}
+                  style={[styles.quickFeedbackButton, selected && styles.quickFeedbackButtonActive]}
+                >
+                  <Text style={[styles.quickFeedbackText, selected && styles.quickFeedbackTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <Text style={styles.inputLabel}>Esforço geral (RPE 1–10)</Text>
           <TextInput value={perceivedEffort} onChangeText={setPerceivedEffort} keyboardType="number-pad" style={styles.fullInput} placeholder="7" />
-          <Text style={styles.inputLabel}>Como foi o treino? (opcional)</Text>
+          <Text style={styles.inputLabel}>Comentário adicional (opcional)</Text>
           <TextInput value={feedback} onChangeText={setFeedback} style={[styles.fullInput, styles.feedbackInput]} placeholder="Ex.: boa execução, último round mais difícil..." multiline />
 
           <TouchableOpacity disabled={finishing} onPress={finishWorkout} style={styles.primaryButton}>
@@ -752,8 +823,15 @@ const styles = StyleSheet.create({
   restCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginBottom: 16, alignItems: 'center' },
   restLabel: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
   restValue: { color: theme.colors.white, fontSize: 42, fontWeight: '900', marginVertical: 4 },
-  restButton: { paddingVertical: 8, paddingHorizontal: 16 },
-  restButtonText: { color: '#C8D4E3', fontWeight: '800', fontSize: 12 },
+  restNextCard: { width: '100%', backgroundColor: '#173B65', borderRadius: 14, padding: 12, marginTop: 6, marginBottom: 10 },
+  restNextEyebrow: { color: theme.colors.lime, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  restNextName: { color: theme.colors.white, fontSize: 15, fontWeight: '900', marginTop: 3 },
+  restNextMeta: { color: '#AFC1D5', fontSize: 10, marginTop: 2, textTransform: 'capitalize' },
+  restActions: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  restButton: { backgroundColor: '#24486F', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
+  restButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 11 },
+  restSecondaryButton: { borderWidth: 1, borderColor: '#476A8D', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
+  restSecondaryButtonText: { color: '#C8D4E3', fontWeight: '900', fontSize: 11 },
   phaseLoadingCard: { backgroundColor: theme.colors.navy, borderRadius: 18, padding: 18, marginBottom: 16, alignItems: 'center', gap: 9 },
   phaseLoadingText: { color: theme.colors.white, fontSize: 11, fontWeight: '800' },
   phaseExecutionCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
@@ -806,6 +884,11 @@ const styles = StyleSheet.create({
   substituteButton: { backgroundColor: theme.colors.lime, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, minWidth: 58, alignItems: 'center' },
   substituteButtonText: { color: theme.colors.navyDark, fontSize: 10, fontWeight: '900' },
   timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14, alignItems: 'center' },
+  prepareEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.6 },
+  prepareValue: { color: theme.colors.navy, fontSize: 56, fontWeight: '900', lineHeight: 64, marginTop: 2 },
+  prepareText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 16, textAlign: 'center', maxWidth: 260 },
+  prepareSkipButton: { backgroundColor: theme.colors.navy, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18, marginTop: 10 },
+  prepareSkipButtonText: { color: theme.colors.white, fontSize: 10, fontWeight: '900' },
   timedLabel: { color: theme.colors.navy, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   timedValue: { color: theme.colors.navy, fontSize: 42, fontWeight: '900', marginVertical: 5 },
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
@@ -825,6 +908,11 @@ const styles = StyleSheet.create({
   loadInput: { flex: 1, textAlign: 'center', minWidth: 48 },
   loadHint: { color: theme.colors.textMuted, fontSize: 7, textAlign: 'center', marginTop: 3 },
   fullInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: theme.colors.text, backgroundColor: '#F9FBFD' },
+  quickFeedbackWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 },
+  quickFeedbackButton: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: '#F7F9FB', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 11 },
+  quickFeedbackButtonActive: { backgroundColor: theme.colors.navy, borderColor: theme.colors.navy },
+  quickFeedbackText: { color: theme.colors.textMuted, fontSize: 9, fontWeight: '800' },
+  quickFeedbackTextActive: { color: theme.colors.white },
   feedbackInput: { minHeight: 84, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
