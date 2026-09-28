@@ -1,0 +1,107 @@
+name: Evolua Core Guided Test APK
+
+on:
+  push:
+    branches:
+      - feat/workout-reference-redesign-v5
+    paths:
+      - '.github/workflows/guided-test-apk.yml'
+      - 'apps/mobile/**'
+      - 'scripts/build-android-homologation.mjs'
+      - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/prepare-anatomy-asset.mjs'
+      - 'scripts/generate-original-exercise-clip.py'
+      - 'scripts/audit-mobile-exercise-media.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    name: Gerar APK Android de homologação do treino guiado
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      EXPO_PUBLIC_HOMOLOGATION_OFFLINE: '1'
+      EXPO_PUBLIC_API_URL: http://offline.evolua.local/v1
+      STRICT_EXERCISE_MEDIA: '1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Preparar ferramentas de mídia
+        run: |
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
+          python -m pip install --disable-pip-version-check --quiet pillow
+          ffmpeg -version | head -n 1
+          python -c "from PIL import Image; print('Pillow pronto')"
+
+      - name: Preparar mapa anatômico realista offline
+        run: node scripts/prepare-anatomy-asset.mjs
+
+      - name: Materializar clipes instrutivos offline
+        run: npm run homologacao:media:prepare
+
+      - name: Typecheck mobile
+        run: npm --workspace @evolua/mobile run typecheck
+
+      - name: Auditar cobertura de mídia
+        run: npm run homologacao:media:mobile
+
+      - name: Preparar ambiente temporário de build
+        run: |
+          printf 'EXPO_PUBLIC_HOMOLOGATION_OFFLINE=1\n' > .env.homologation
+          printf 'EXPO_PUBLIC_API_URL=%s\n' "$EXPO_PUBLIC_API_URL" >> .env.homologation
+
+      - name: Reparar PNG do branding para prebuild
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageFile
+
+          ImageFile.LOAD_TRUNCATED_IMAGES = True
+          source = Path('apps/mobile/assets/brand/icon.png')
+          target = Path('/tmp/evolua-core-icon.png')
+
+          with Image.open(source) as image:
+              image.load()
+              image.convert('RGBA').save(target, format='PNG', optimize=False)
+
+          source.write_bytes(target.read_bytes())
+          print(f'PNG reparado: {source} ({source.stat().st_size} bytes)')
+          PY
+
+      - name: Gerar APK
+        run: npm run homologacao:android
+
+      - name: Publicar APK, manifesto e cobertura de mídia
+        uses: actions/upload-artifact@v7
+        with:
+          name: evolua-core-guided-test-${{ github.sha }}
+          path: |
+            dist/*.apk
+            dist/*.json
+          if-no-files-found: error
+          retention-days: 14
