@@ -90,3 +90,5 @@ jobs:
             dist/*.json
           if-no-files-found: error
           retention-days: 14
+
+# v2: revalidação após compatibilidade de Appearance.setColorScheme
