@@ -39,13 +39,13 @@ export function ExerciseGuidancePreview({ name, videoUrl, license, attribution }
 
 const styles = StyleSheet.create({
   wrap: { marginTop: 12 },
-  button: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#EDF3E2', borderRadius: 18, padding: 13, borderWidth: 1, borderColor: '#DCE9C5' },
+  button: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.tintSurface, borderRadius: 18, padding: 13, borderWidth: 1, borderColor: '#DCE9C5' },
   buttonOpen: { backgroundColor: '#E5F2CE', borderColor: '#CBE19E' },
   icon: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   iconText: { color: theme.colors.lime, fontSize: 13, fontWeight: '900' },
   textWrap: { flex: 1 },
   eyebrow: { color: theme.colors.success, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  title: { color: theme.colors.navy, fontSize: 13, fontWeight: '900', marginTop: 2 },
+  title: { color: theme.colors.textStrong, fontSize: 13, fontWeight: '900', marginTop: 2 },
   subtitle: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
   badge: { backgroundColor: theme.colors.lime, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 6 },
   badgeText: { color: theme.colors.navyDark, fontSize: 8, fontWeight: '900' },

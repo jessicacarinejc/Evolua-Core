@@ -7,6 +7,7 @@ on:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
       - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/prepare-anatomy-asset.mjs'
       - 'scripts/generate-original-exercise-clip.py'
       - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
@@ -18,6 +19,7 @@ on:
       - 'apps/mobile/**'
       - 'scripts/build-android-homologation.mjs'
       - 'scripts/prepare-mobile-exercise-media.mjs'
+      - 'scripts/prepare-anatomy-asset.mjs'
       - 'scripts/generate-original-exercise-clip.py'
       - 'scripts/audit-mobile-exercise-media.mjs'
       - 'package.json'
@@ -70,6 +72,9 @@ jobs:
           python -m pip install --disable-pip-version-check --quiet pillow
           ffmpeg -version | head -n 1
           python -c "from PIL import Image; print('Pillow pronto')"
+
+      - name: Preparar mapa anatômico realista offline
+        run: node scripts/prepare-anatomy-asset.mjs
 
       - name: Materializar 29 clipes instrutivos offline
         run: npm run homologacao:media:prepare

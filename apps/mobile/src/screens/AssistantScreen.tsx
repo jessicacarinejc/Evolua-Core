@@ -10,9 +10,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { getApiBaseUrl } from '../api/runtime-config';
 import { theme } from '../theme';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:3333/v1';
 
 type AssistantResponse = {
   answer: string;
@@ -55,7 +54,8 @@ export function AssistantScreen({ token }: { token: string | null }) {
     setSending(true);
 
     try {
-      const response = await fetch(`${API_URL}/assistant/ask`, {
+      const apiUrl = await getApiBaseUrl();
+      const response = await fetch(`${apiUrl}/assistant/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -131,7 +131,7 @@ export function AssistantScreen({ token }: { token: string | null }) {
           value={input}
           onChangeText={setInput}
           placeholder="Pergunte sobre treino, alimentação, recuperação ou seus registros"
-          placeholderTextColor="#B8C7D9"
+          placeholderTextColor={theme.colors.placeholder}
           selectionColor={theme.colors.lime}
           style={styles.input}
           multiline
@@ -154,17 +154,17 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.colors.background },
   header: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.lg, paddingBottom: 12 },
   eyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
-  title: { color: theme.colors.navy, fontSize: 28, fontWeight: '900', marginTop: 4 },
+  title: { color: theme.colors.textStrong, fontSize: 28, fontWeight: '900', marginTop: 4 },
   subtitle: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 19, marginTop: 6 },
-  safetyCard: { marginHorizontal: theme.spacing.lg, backgroundColor: '#EDF3E2', borderRadius: theme.radius.md, padding: 14 },
-  safetyTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 13 },
+  safetyCard: { marginHorizontal: theme.spacing.lg, backgroundColor: theme.colors.tintSurface, borderRadius: theme.radius.md, padding: 14 },
+  safetyTitle: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 13 },
   safetyText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },
   messages: { flex: 1, marginTop: 12 },
   messagesContent: { paddingHorizontal: theme.spacing.lg, paddingBottom: 16, gap: 10 },
   bubble: { borderRadius: theme.radius.md, padding: 14, maxWidth: '92%' },
   userBubble: { alignSelf: 'flex-end', backgroundColor: theme.colors.navy },
   assistantBubble: { alignSelf: 'flex-start', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
-  blockedBubble: { borderColor: theme.colors.warning, backgroundColor: '#FFF8E8' },
+  blockedBubble: { borderColor: theme.colors.warning, backgroundColor: theme.colors.warningSurface },
   messageRole: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginBottom: 5 },
   messageText: { color: theme.colors.text, fontSize: 14, lineHeight: 20 },
   userMessageText: { color: theme.colors.white },
@@ -172,8 +172,8 @@ const styles = StyleSheet.create({
   loadingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   loadingText: { color: theme.colors.textMuted, fontSize: 12 },
   error: { color: theme.colors.danger, fontSize: 12, paddingHorizontal: theme.spacing.lg, paddingBottom: 8 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: theme.spacing.lg, paddingTop: 10, paddingBottom: 12, backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border },
-  input: { flex: 1, minHeight: 48, maxHeight: 118, borderWidth: 1, borderColor: '#29496D', borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, color: theme.colors.white, backgroundColor: theme.colors.navyDark, fontSize: 14, lineHeight: 20 },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: theme.spacing.lg, paddingTop: 10, paddingBottom: 12, backgroundColor: theme.colors.surface, borderTopWidth: 1, borderTopColor: theme.colors.border },
+  input: { flex: 1, minHeight: 48, maxHeight: 118, borderWidth: 1, borderColor: theme.colors.borderStrong, borderRadius: 16, paddingHorizontal: 13, paddingVertical: 11, color: theme.colors.text, backgroundColor: theme.colors.inputSurface, fontSize: 14, lineHeight: 20 },
   sendButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingHorizontal: 17, paddingVertical: 15 },
   sendButtonDisabled: { opacity: 0.45 },
   sendButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 12 },

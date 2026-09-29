@@ -37,6 +37,14 @@ const safetyTypeLabels: Record<SafetyInputType, string> = {
   other: 'Outro sintoma',
 };
 
+const quickFeedbackOptions = [
+  { label: 'Muito fácil', rpe: '3' },
+  { label: 'Fácil', rpe: '5' },
+  { label: 'Adequado', rpe: '7' },
+  { label: 'Difícil', rpe: '8' },
+  { label: 'Muito difícil', rpe: '9' },
+] as const;
+
 function asNumber(value: string) {
   const normalized = value.replace(',', '.').trim();
   if (!normalized) return undefined;
@@ -74,6 +82,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   const [restRemaining, setRestRemaining] = useState(0);
   const [workRemaining, setWorkRemaining] = useState(0);
   const [workRunning, setWorkRunning] = useState(false);
+  const [prepareRemaining, setPrepareRemaining] = useState(0);
   const [perceivedEffort, setPerceivedEffort] = useState('7');
   const [feedback, setFeedback] = useState('');
   const [showSafetyPanel, setShowSafetyPanel] = useState(false);
@@ -186,6 +195,18 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
   }, [workRemaining, workRunning]);
 
   useEffect(() => {
+    if (!isCircuit || prepareRemaining <= 0 || !currentExercise?.durationSeconds || restRemaining > 0) return;
+    const timer = setInterval(() => {
+      setPrepareRemaining((value) => {
+        const next = Math.max(0, value - 1);
+        if (next === 0) setWorkRunning(true);
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [currentExercise?.id, isCircuit, prepareRemaining, restRemaining]);
+
+  useEffect(() => {
     if (!phaseRunning || phaseRemaining <= 0) return;
     const timer = setInterval(() => {
       setPhaseRemaining((value) => {
@@ -212,6 +233,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
     setReps(previous?.repetitions != null ? String(previous.repetitions) : String(currentExercise.repsMin ?? ''));
     setRir(previous?.rir != null ? String(previous.rir) : String(currentExercise.targetRir ?? ''));
     setWorkRemaining(currentExercise.durationSeconds ?? 0);
+    setPrepareRemaining(isCircuit && currentExercise.durationSeconds ? 5 : 0);
     setWorkRunning(false);
     setSubstitutions([]);
     setShowSafetyPanel(false);
@@ -511,9 +533,21 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
         <View style={styles.restCard}>
           <Text style={styles.restLabel}>{isCircuit && restRemaining > 20 ? 'DESCANSO ENTRE ROUNDS' : 'DESCANSO'}</Text>
           <Text style={styles.restValue}>{restRemaining}s</Text>
-          <TouchableOpacity onPress={() => setRestRemaining(0)} style={styles.restButton}>
-            <Text style={styles.restButtonText}>Pular descanso</Text>
-          </TouchableOpacity>
+          {currentExercise ? (
+            <View style={styles.restNextCard}>
+              <Text style={styles.restNextEyebrow}>PRÓXIMO</Text>
+              <Text style={styles.restNextName}>{currentExercise.name}</Text>
+              <Text style={styles.restNextMeta}>{currentExercise.primaryMuscle}</Text>
+            </View>
+          ) : null}
+          <View style={styles.restActions}>
+            <TouchableOpacity onPress={() => setRestRemaining((value) => value + 30)} style={styles.restSecondaryButton}>
+              <Text style={styles.restSecondaryButtonText}>+30 segundos</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setRestRemaining(0)} style={styles.restButton}>
+              <Text style={styles.restButtonText}>Pular</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : currentExercise && currentSet && !allMainCompleted ? (
         <View style={styles.currentCard}>
@@ -624,18 +658,37 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.durationSeconds ? (
             <View style={styles.timedCard}>
-              <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
-              <Text style={styles.timedValue}>{workRemaining}s</Text>
-              {workRemaining > 0 ? (
-                <TouchableOpacity
-                  disabled={restRemaining > 0}
-                  onPress={() => setWorkRunning((value) => !value)}
-                  style={[styles.timerButton, restRemaining > 0 && styles.disabled]}
-                >
-                  <Text style={styles.timerButtonText}>{workRunning ? 'Pausar' : workRemaining === currentExercise.durationSeconds ? 'Iniciar' : 'Continuar'}</Text>
-                </TouchableOpacity>
+              {prepareRemaining > 0 ? (
+                <>
+                  <Text style={styles.prepareEyebrow}>PREPARE-SE</Text>
+                  <Text style={styles.prepareValue}>{prepareRemaining}</Text>
+                  <Text style={styles.prepareText}>O exercício começa automaticamente quando a contagem chegar a zero.</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPrepareRemaining(0);
+                      setWorkRunning(true);
+                    }}
+                    style={styles.prepareSkipButton}
+                  >
+                    <Text style={styles.prepareSkipButtonText}>Começar agora</Text>
+                  </TouchableOpacity>
+                </>
               ) : (
-                <Text style={styles.timedText}>Tempo cumprido. Registre o bloco para avançar.</Text>
+                <>
+                  <Text style={styles.timedLabel}>{workRemaining > 0 ? 'TEMPO DO BLOCO' : 'BLOCO CONCLUÍDO'}</Text>
+                  <Text style={styles.timedValue}>{workRemaining}s</Text>
+                  {workRemaining > 0 ? (
+                    <TouchableOpacity
+                      disabled={restRemaining > 0}
+                      onPress={() => setWorkRunning((value) => !value)}
+                      style={[styles.timerButton, restRemaining > 0 && styles.disabled]}
+                    >
+                      <Text style={styles.timerButtonText}>{workRunning ? 'Pausar' : workRemaining === currentExercise.durationSeconds ? 'Iniciar' : 'Continuar'}</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.timedText}>Tempo cumprido. Toque em concluir para avançar com segurança.</Text>
+                  )}
+                </>
               )}
             </View>
           ) : (
@@ -687,9 +740,27 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <Text style={styles.finishTitle}>Sessão completa</Text>
           <Text style={styles.finishText}>Aquecimento, treino principal e resfriamento concluídos. Registre o esforço geral para fechar o treino e alimentar seu histórico de evolução.</Text>
 
+          <Text style={styles.inputLabel}>Como foi o treino?</Text>
+          <View style={styles.quickFeedbackWrap}>
+            {quickFeedbackOptions.map((option) => {
+              const selected = feedback === option.label;
+              return (
+                <TouchableOpacity
+                  key={option.label}
+                  onPress={() => {
+                    setFeedback(option.label);
+                    setPerceivedEffort(option.rpe);
+                  }}
+                  style={[styles.quickFeedbackButton, selected && styles.quickFeedbackButtonActive]}
+                >
+                  <Text style={[styles.quickFeedbackText, selected && styles.quickFeedbackTextActive]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
           <Text style={styles.inputLabel}>Esforço geral (RPE 1–10)</Text>
           <TextInput value={perceivedEffort} onChangeText={setPerceivedEffort} keyboardType="number-pad" style={styles.fullInput} placeholder="7" />
-          <Text style={styles.inputLabel}>Como foi o treino? (opcional)</Text>
+          <Text style={styles.inputLabel}>Comentário adicional (opcional)</Text>
           <TextInput value={feedback} onChangeText={setFeedback} style={[styles.fullInput, styles.feedbackInput]} placeholder="Ex.: boa execução, último round mais difícil..." multiline />
 
           <TouchableOpacity disabled={finishing} onPress={finishWorkout} style={styles.primaryButton}>
@@ -739,30 +810,37 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 44, backgroundColor: theme.colors.background },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   eyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: theme.colors.navy, fontSize: 27, fontWeight: '900', marginTop: 5, textTransform: 'capitalize', maxWidth: 250 },
+  title: { color: theme.colors.textStrong, fontSize: 27, fontWeight: '900', marginTop: 5, textTransform: 'capitalize', maxWidth: 250 },
   progressBadge: { alignItems: 'flex-end' },
-  progressValue: { color: theme.colors.navy, fontSize: 24, fontWeight: '900' },
+  progressValue: { color: theme.colors.textStrong, fontSize: 24, fontWeight: '900' },
   progressLabel: { color: theme.colors.textMuted, fontSize: 10, marginTop: 2 },
-  roundCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 14, marginTop: 14 },
+  roundCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 16, padding: 14, marginTop: 14 },
   roundEyebrow: { color: theme.colors.lime, fontWeight: '900', fontSize: 10, letterSpacing: 1.2 },
-  roundValue: { color: theme.colors.navy, fontWeight: '900', fontSize: 18, marginTop: 3 },
+  roundValue: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 18, marginTop: 3 },
   roundText: { color: theme.colors.textMuted, fontSize: 11, marginTop: 3 },
   progressTrack: { height: 8, borderRadius: 8, backgroundColor: '#E5EBF1', overflow: 'hidden', marginTop: 18, marginBottom: 18 },
   progressBar: { height: 8, backgroundColor: theme.colors.lime, borderRadius: 8 },
   restCard: { backgroundColor: theme.colors.navy, borderRadius: 20, padding: 18, marginBottom: 16, alignItems: 'center' },
   restLabel: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
   restValue: { color: theme.colors.white, fontSize: 42, fontWeight: '900', marginVertical: 4 },
-  restButton: { paddingVertical: 8, paddingHorizontal: 16 },
-  restButtonText: { color: '#C8D4E3', fontWeight: '800', fontSize: 12 },
+  restNextCard: { width: '100%', backgroundColor: '#173B65', borderRadius: 14, padding: 12, marginTop: 6, marginBottom: 10 },
+  restNextEyebrow: { color: theme.colors.lime, fontSize: 8, fontWeight: '900', letterSpacing: 1.1 },
+  restNextName: { color: theme.colors.white, fontSize: 15, fontWeight: '900', marginTop: 3 },
+  restNextMeta: { color: '#AFC1D5', fontSize: 10, marginTop: 2, textTransform: 'capitalize' },
+  restActions: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  restButton: { backgroundColor: '#24486F', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 18 },
+  restButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 11 },
+  restSecondaryButton: { borderWidth: 1, borderColor: '#476A8D', borderRadius: 999, paddingVertical: 10, paddingHorizontal: 16 },
+  restSecondaryButtonText: { color: '#C8D4E3', fontWeight: '900', fontSize: 11 },
   phaseLoadingCard: { backgroundColor: theme.colors.navy, borderRadius: 18, padding: 18, marginBottom: 16, alignItems: 'center', gap: 9 },
   phaseLoadingText: { color: theme.colors.white, fontSize: 11, fontWeight: '800' },
-  phaseExecutionCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
+  phaseExecutionCard: { backgroundColor: theme.colors.surface, borderRadius: 22, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16 },
   phaseExecutionEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
-  phaseExecutionTitle: { color: theme.colors.navy, fontSize: 23, fontWeight: '900', marginTop: 5 },
+  phaseExecutionTitle: { color: theme.colors.textStrong, fontSize: 23, fontWeight: '900', marginTop: 5 },
   phaseExecutionText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5, marginBottom: 13 },
   phaseStepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 9 },
-  phaseStepNumber: { width: 25, height: 25, borderRadius: 13, backgroundColor: '#EDF3E2', alignItems: 'center', justifyContent: 'center' },
-  phaseStepNumberText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  phaseStepNumber: { width: 25, height: 25, borderRadius: 13, backgroundColor: theme.colors.tintSurface, alignItems: 'center', justifyContent: 'center' },
+  phaseStepNumberText: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900' },
   phaseStepText: { flex: 1, color: theme.colors.text, fontSize: 11, lineHeight: 17 },
   phaseTimerCard: { backgroundColor: '#0F2B4F', borderRadius: 16, padding: 14, alignItems: 'center', marginTop: 16 },
   phaseTimerLabel: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.1 },
@@ -770,13 +848,13 @@ const styles = StyleSheet.create({
   phaseTimerButton: { backgroundColor: '#24486F', borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18 },
   phaseTimerButtonText: { color: theme.colors.white, fontSize: 10, fontWeight: '900' },
   phaseSelfReport: { color: theme.colors.textMuted, fontSize: 8, textAlign: 'center', marginTop: 7 },
-  currentCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
+  currentCard: { backgroundColor: theme.colors.surface, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
   exerciseOrder: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  exerciseName: { color: theme.colors.navy, fontSize: 23, fontWeight: '900', marginTop: 6 },
+  exerciseName: { color: theme.colors.textStrong, fontSize: 23, fontWeight: '900', marginTop: 6 },
   exerciseMuscle: { color: theme.colors.textMuted, fontSize: 12, marginTop: 3, textTransform: 'capitalize' },
   nextCard: { backgroundColor: '#EEF4FA', borderRadius: 13, padding: 11, marginTop: 13, borderLeftWidth: 4, borderLeftColor: theme.colors.lime },
   nextEyebrow: { color: theme.colors.textMuted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-  nextName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900', marginTop: 2 },
+  nextName: { color: theme.colors.textStrong, fontSize: 12, fontWeight: '900', marginTop: 2 },
   nextMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
   targetRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 16 },
   targetItem: { flex: 1 },
@@ -787,7 +865,7 @@ const styles = StyleSheet.create({
   safetyActionButton: { flex: 1, borderWidth: 1, borderColor: '#E4B36A', backgroundColor: '#FFF7EC', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 9, alignItems: 'center' },
   safetyActionText: { color: theme.colors.warning, fontSize: 10, fontWeight: '900' },
   safetyPanel: { backgroundColor: '#FFF7EC', borderRadius: 14, padding: 13, marginBottom: 14, borderWidth: 1, borderColor: '#F2D3A5' },
-  safetyPanelTitle: { color: theme.colors.navy, fontSize: 14, fontWeight: '900' },
+  safetyPanelTitle: { color: theme.colors.textStrong, fontSize: 14, fontWeight: '900' },
   safetyTypeWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   safetyTypeButton: { borderRadius: 999, borderWidth: 1, borderColor: theme.colors.border, paddingVertical: 7, paddingHorizontal: 10, backgroundColor: theme.colors.white },
   safetyTypeButtonActive: { backgroundColor: theme.colors.navy, borderColor: theme.colors.navy },
@@ -796,50 +874,60 @@ const styles = StyleSheet.create({
   safetyNotesInput: { minHeight: 70, textAlignVertical: 'top' },
   safetySaveButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 12, alignItems: 'center', marginTop: 10 },
   safetySaveText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
-  substitutionCard: { backgroundColor: '#EEF7DE', borderRadius: 14, padding: 13, marginBottom: 14 },
-  substitutionTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
+  substitutionCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 14, padding: 13, marginBottom: 14 },
+  substitutionTitle: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 14 },
   substitutionIntro: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 15, marginTop: 3, marginBottom: 8 },
   substitutionRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 9, borderTopWidth: 1, borderTopColor: '#D9E7BF' },
   substitutionTextWrap: { flex: 1, paddingRight: 8 },
-  substitutionName: { color: theme.colors.navy, fontWeight: '900', fontSize: 12 },
+  substitutionName: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 12 },
   substitutionMeta: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 2 },
   substituteButton: { backgroundColor: theme.colors.lime, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12, minWidth: 58, alignItems: 'center' },
   substituteButtonText: { color: theme.colors.navyDark, fontSize: 10, fontWeight: '900' },
-  timedCard: { backgroundColor: '#EDF3E2', borderRadius: 14, padding: 14, marginBottom: 14, alignItems: 'center' },
-  timedLabel: { color: theme.colors.navy, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  timedValue: { color: theme.colors.navy, fontSize: 42, fontWeight: '900', marginVertical: 5 },
+  timedCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 14, padding: 14, marginBottom: 14, alignItems: 'center' },
+  prepareEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.6 },
+  prepareValue: { color: theme.colors.textStrong, fontSize: 56, fontWeight: '900', lineHeight: 64, marginTop: 2 },
+  prepareText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 16, textAlign: 'center', maxWidth: 260 },
+  prepareSkipButton: { backgroundColor: theme.colors.navy, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 18, marginTop: 10 },
+  prepareSkipButtonText: { color: theme.colors.white, fontSize: 10, fontWeight: '900' },
+  timedLabel: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  timedValue: { color: theme.colors.textStrong, fontSize: 42, fontWeight: '900', marginVertical: 5 },
   timedText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18 },
   timerButton: { backgroundColor: theme.colors.navy, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 28, marginTop: 4 },
   timerButtonText: { color: theme.colors.white, fontWeight: '900', fontSize: 12 },
-  suggestedLoadCard: { backgroundColor: '#EEF7DE', borderRadius: 12, padding: 12, marginBottom: 8 },
-  suggestedLoadTitle: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  suggestedLoadCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 12, padding: 12, marginBottom: 8 },
+  suggestedLoadTitle: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900' },
   suggestedLoadText: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 3 },
   inputRow: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 14, alignItems: 'flex-start' },
   inputGroup: { flex: 1 },
   loadGroup: { flex: 1.45 },
   inputLabel: { color: theme.colors.text, fontSize: 11, fontWeight: '800', marginBottom: 6, marginTop: 10 },
-  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD', minHeight: 45 },
+  input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, color: theme.colors.text, backgroundColor: theme.colors.inputSurface, minHeight: 45 },
   loadControl: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   loadAdjustButton: { width: 34, minHeight: 45, borderRadius: 11, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center' },
   loadAdjustText: { color: theme.colors.white, fontSize: 20, fontWeight: '900', lineHeight: 22 },
   loadInput: { flex: 1, textAlign: 'center', minWidth: 48 },
   loadHint: { color: theme.colors.textMuted, fontSize: 7, textAlign: 'center', marginTop: 3 },
   fullInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, color: theme.colors.text, backgroundColor: '#F9FBFD' },
+  quickFeedbackWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 12 },
+  quickFeedbackButton: { borderWidth: 1, borderColor: theme.colors.border, backgroundColor: '#F7F9FB', borderRadius: 999, paddingVertical: 8, paddingHorizontal: 11 },
+  quickFeedbackButtonActive: { backgroundColor: theme.colors.navy, borderColor: theme.colors.navy },
+  quickFeedbackText: { color: theme.colors.textMuted, fontSize: 9, fontWeight: '800' },
+  quickFeedbackTextActive: { color: theme.colors.white },
   feedbackInput: { minHeight: 84, textAlignVertical: 'top' },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 10 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 15 },
   disabled: { opacity: 0.45 },
-  finishCard: { backgroundColor: theme.colors.white, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
-  finishTitle: { color: theme.colors.navy, fontSize: 22, fontWeight: '900' },
+  finishCard: { backgroundColor: theme.colors.surface, borderRadius: 22, padding: 19, borderWidth: 1, borderColor: theme.colors.border },
+  finishTitle: { color: theme.colors.textStrong, fontSize: 22, fontWeight: '900' },
   finishText: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 6, marginBottom: 8 },
   sectionTitle: { color: theme.colors.text, fontSize: 18, fontWeight: '900', marginTop: 24, marginBottom: 10 },
-  exerciseProgressRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.white, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginBottom: 8 },
+  exerciseProgressRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginBottom: 8 },
   exerciseProgressText: { flex: 1 },
-  exerciseProgressName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900' },
+  exerciseProgressName: { color: theme.colors.textStrong, fontSize: 12, fontWeight: '900' },
   exerciseProgressMeta: { color: theme.colors.textMuted, fontSize: 10, marginTop: 3 },
   exerciseProgressStatus: { color: theme.colors.lime, fontSize: 15, fontWeight: '900' },
-  sessionEventsCard: { backgroundColor: theme.colors.white, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginTop: 10 },
-  sessionEventsTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 13, marginBottom: 5 },
+  sessionEventsCard: { backgroundColor: theme.colors.surface, borderRadius: 14, borderWidth: 1, borderColor: theme.colors.border, padding: 14, marginTop: 10 },
+  sessionEventsTitle: { color: theme.colors.textStrong, fontWeight: '900', fontSize: 13, marginBottom: 5 },
   sessionEventText: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 2 },
   noticeCard: { backgroundColor: '#FFF4E5', borderRadius: 16, padding: 16, marginTop: 16 },
   noticeTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },

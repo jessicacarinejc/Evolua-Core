@@ -1,0 +1,44 @@
+name: Apply food diary autofill
+
+on:
+  push:
+    branches:
+      - feat/workout-reference-redesign-v5
+    paths:
+      - 'scripts/patch-food-diary-autofill.mjs'
+      - '.github/workflows/apply-food-diary-autofill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: feat/workout-reference-redesign-v5
+          fetch-depth: 0
+
+      - name: Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      - name: Aplicar patch
+        run: node scripts/patch-food-diary-autofill.mjs
+
+      - name: Commitar alteração
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/src/screens/NutritionScreen.tsx
+          if git diff --cached --quiet; then
+            echo "Sem alterações para commitar."
+            exit 0
+          fi
+          git commit -m "feat(nutrição): calcular alimentos automaticamente no diário"
+          git push origin HEAD:feat/workout-reference-redesign-v5

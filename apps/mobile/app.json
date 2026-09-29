@@ -2,9 +2,9 @@
   "expo": {
     "name": "Evolua Core",
     "slug": "evolua-core",
-    "version": "0.1.6",
+    "version": "0.1.12",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "icon": "./assets/brand/icon.png",
     "splash": {
@@ -32,7 +32,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "br.com.evoluacore.app",
-      "buildNumber": "7",
+      "buildNumber": "14",
       "icon": "./assets/brand/icon.png",
       "config": {
         "usesNonExemptEncryption": false
@@ -40,7 +40,7 @@
     },
     "android": {
       "package": "br.com.evoluacore.app",
-      "versionCode": 7,
+      "versionCode": 14,
       "adaptiveIcon": {
         "foregroundImage": "./assets/brand/icon.png",
         "backgroundColor": "#FFFFFF"
@@ -49,7 +49,7 @@
     "extra": {
       "brandName": "Evolua Core",
       "tagline": "Treino. Nutrição. Saúde. Evolução.",
-      "releaseChannel": "homologacao-mobile-offline",
+      "releaseChannel": "homologacao-mobile-offline-recovery",
       "offlineHomologation": true
     }
   }

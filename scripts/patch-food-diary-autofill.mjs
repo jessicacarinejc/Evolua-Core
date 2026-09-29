@@ -1,0 +1,56 @@
+import fs from 'node:fs';
+
+const path = 'apps/mobile/src/screens/NutritionScreen.tsx';
+let source = fs.readFileSync(path, 'utf8');
+
+function replaceRequired(from, to, label) {
+  if (!source.includes(from)) {
+    throw new Error(`Trecho não encontrado: ${label}`);
+  }
+  source = source.replace(from, to);
+}
+
+replaceRequired(
+  "import { OnboardingData } from '../onboarding/types';\nimport { theme } from '../theme';",
+  "import { OnboardingData } from '../onboarding/types';\nimport { FoodCatalogItem, findExactFood, scaleFood, searchFoodCatalog } from '../nutrition/food-catalog';\nimport { theme } from '../theme';",
+  'import catálogo',
+);
+
+replaceRequired(
+  "  const [fat, setFat] = useState('');\n  const [targetCalories, setTargetCalories] = useState('');",
+  "  const [fat, setFat] = useState('');\n  const [selectedFood, setSelectedFood] = useState<FoodCatalogItem | null>(null);\n  const [servings, setServings] = useState('1');\n  const [targetCalories, setTargetCalories] = useState('');",
+  'estados do catálogo',
+);
+
+replaceRequired(
+  "  const addMeal = async () => {",
+  `  const applySelectedFood = (item: FoodCatalogItem, nextServings = 1) => {\n    const scaled = scaleFood(item, nextServings);\n    setSelectedFood(item);\n    setFoodName(item.name);\n    setServings(String(nextServings));\n    setCalories(String(Math.round(scaled.caloriesKcal)));\n    setProtein(scaled.proteinG.toFixed(1));\n    setCarbs(scaled.carbsG.toFixed(1));\n    setFat(scaled.fatG.toFixed(1));\n  };\n\n  const handleFoodNameChange = (value: string) => {\n    setFoodName(value);\n    const exact = findExactFood(value);\n    if (exact) {\n      applySelectedFood(exact, 1);\n      return;\n    }\n    setSelectedFood(null);\n    setServings('1');\n    setCalories('');\n    setProtein('');\n    setCarbs('');\n    setFat('');\n  };\n\n  const handleServingsChange = (value: string) => {\n    setServings(value);\n    if (!selectedFood) return;\n    const parsed = Number(value.replace(',', '.'));\n    if (!Number.isFinite(parsed) || parsed <= 0) return;\n    const scaled = scaleFood(selectedFood, parsed);\n    setCalories(String(Math.round(scaled.caloriesKcal)));\n    setProtein(scaled.proteinG.toFixed(1));\n    setCarbs(scaled.carbsG.toFixed(1));\n    setFat(scaled.fatG.toFixed(1));\n  };\n\n  const stepServings = (delta: number) => {\n    if (!selectedFood) return;\n    const current = Number(servings.replace(',', '.'));\n    const base = Number.isFinite(current) && current > 0 ? current : 1;\n    const next = Math.max(0.5, Math.round((base + delta) * 2) / 2);\n    applySelectedFood(selectedFood, next);\n  };\n\n  const foodSuggestions = foodName.trim().length >= 2 && !selectedFood\n    ? searchFoodCatalog(foodName).slice(0, 4)\n    : [];\n\n  const addMeal = async () => {`,
+  'handlers do catálogo',
+);
+
+replaceRequired(
+  "        name: foodName.trim(),",
+  "        name: selectedFood ? `${selectedFood.name} · ${servings} × ${selectedFood.servingLabel}` : foodName.trim(),",
+  'nome da refeição',
+);
+
+replaceRequired(
+  "      setFat('');\n    } catch (cause) {",
+  "      setFat('');\n      setSelectedFood(null);\n      setServings('1');\n    } catch (cause) {",
+  'reset do catálogo',
+);
+
+const oldForm = `        <Text style={styles.formHelp}>Os dados nutricionais são opcionais nesta fase. Quando informados, entram no resumo do dia.</Text>\n        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>\n          {mealOptions.map((option) => (\n            <TouchableOpacity key={option.key} onPress={() => setMealType(option.key)} style={[styles.chip, mealType === option.key && styles.chipActive]}>\n              <Text style={[styles.chipText, mealType === option.key && styles.chipTextActive]}>{option.label}</Text>\n            </TouchableOpacity>\n          ))}\n        </ScrollView>\n        <TextInput value={foodName} onChangeText={setFoodName} placeholder=\"Ex.: banana com aveia\" style={styles.fullInput} />\n        <View style={styles.inputRow}>\n          <TextInput value={calories} onChangeText={setCalories} keyboardType=\"decimal-pad\" placeholder=\"kcal\" style={styles.smallInput} />\n          <TextInput value={protein} onChangeText={setProtein} keyboardType=\"decimal-pad\" placeholder=\"proteína g\" style={styles.smallInput} />\n        </View>\n        <View style={styles.inputRow}>\n          <TextInput value={carbs} onChangeText={setCarbs} keyboardType=\"decimal-pad\" placeholder=\"carbo g\" style={styles.smallInput} />\n          <TextInput value={fat} onChangeText={setFat} keyboardType=\"decimal-pad\" placeholder=\"gordura g\" style={styles.smallInput} />\n        </View>`;
+
+const newForm = `        <Text style={styles.formHelp}>Digite o alimento. Quando ele estiver no catálogo, o Evolua Core calcula automaticamente calorias e macronutrientes pela porção escolhida.</Text>\n        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>\n          {mealOptions.map((option) => (\n            <TouchableOpacity key={option.key} onPress={() => setMealType(option.key)} style={[styles.chip, mealType === option.key && styles.chipActive]}>\n              <Text style={[styles.chipText, mealType === option.key && styles.chipTextActive]}>{option.label}</Text>\n            </TouchableOpacity>\n          ))}\n        </ScrollView>\n        <TextInput value={foodName} onChangeText={handleFoodNameChange} placeholder=\"Digite: ovo, pão francês, feijão...\" style={styles.fullInput} />\n\n        {foodSuggestions.length > 0 ? (\n          <View style={styles.suggestionList}>\n            {foodSuggestions.map((item) => (\n              <TouchableOpacity key={item.id} onPress={() => applySelectedFood(item, 1)} style={styles.suggestionItem}>\n                <View style={styles.suggestionCopy}>\n                  <Text style={styles.suggestionName}>{item.name}</Text>\n                  <Text style={styles.suggestionMeta}>{item.servingLabel} · {Math.round(item.caloriesKcal)} kcal</Text>\n                </View>\n                <Text style={styles.suggestionAction}>Usar</Text>\n              </TouchableOpacity>\n            ))}\n          </View>\n        ) : null}\n\n        {selectedFood ? (\n          <View style={styles.detectedFoodCard}>\n            <View style={styles.detectedFoodTop}>\n              <View style={styles.detectedFoodCopy}>\n                <Text style={styles.detectedFoodEyebrow}>ALIMENTO IDENTIFICADO</Text>\n                <Text style={styles.detectedFoodName}>{selectedFood.name}</Text>\n                <Text style={styles.detectedFoodMeta}>{selectedFood.servingLabel} · {selectedFood.sourceLabel}</Text>\n              </View>\n              <Text style={styles.detectedFoodKcal}>{calories || '0'} kcal</Text>\n            </View>\n            <Text style={styles.servingLabel}>Quantidade de porções</Text>\n            <View style={styles.servingRow}>\n              <TouchableOpacity onPress={() => stepServings(-0.5)} style={styles.servingButton}><Text style={styles.servingButtonText}>−</Text></TouchableOpacity>\n              <TextInput value={servings} onChangeText={handleServingsChange} keyboardType=\"decimal-pad\" style={styles.servingInput} />\n              <TouchableOpacity onPress={() => stepServings(0.5)} style={styles.servingButton}><Text style={styles.servingButtonText}>+</Text></TouchableOpacity>\n            </View>\n            <Text style={styles.estimateText}>Estimativa por porção. Marca, tamanho e modo de preparo podem alterar os valores.</Text>\n          </View>\n        ) : (\n          <Text style={styles.catalogHint}>Se não houver correspondência no catálogo, você ainda pode informar os valores manualmente abaixo.</Text>\n        )}\n\n        <Text style={styles.macroInputTitle}>Valores nutricionais</Text>\n        <View style={styles.inputRow}>\n          <TextInput value={calories} onChangeText={setCalories} keyboardType=\"decimal-pad\" placeholder=\"kcal\" style={styles.smallInput} />\n          <TextInput value={protein} onChangeText={setProtein} keyboardType=\"decimal-pad\" placeholder=\"proteína g\" style={styles.smallInput} />\n        </View>\n        <View style={styles.inputRow}>\n          <TextInput value={carbs} onChangeText={setCarbs} keyboardType=\"decimal-pad\" placeholder=\"carbo g\" style={styles.smallInput} />\n          <TextInput value={fat} onChangeText={setFat} keyboardType=\"decimal-pad\" placeholder=\"gordura g\" style={styles.smallInput} />\n        </View>`;
+
+replaceRequired(oldForm, newForm, 'formulário alimentar');
+
+replaceRequired(
+  "  primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 13, paddingVertical: 13, alignItems: 'center', marginTop: 11 },",
+  `  suggestionList: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 13, overflow: 'hidden', marginTop: 6 },\n  suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.border },\n  suggestionCopy: { flex: 1 },\n  suggestionName: { color: theme.colors.textStrong, fontSize: 12, fontWeight: '900' },\n  suggestionMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },\n  suggestionAction: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },\n  detectedFoodCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 14, padding: 13, marginTop: 9 },\n  detectedFoodTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },\n  detectedFoodCopy: { flex: 1 },\n  detectedFoodEyebrow: { color: theme.colors.success, fontSize: 8, fontWeight: '900', letterSpacing: 1 },\n  detectedFoodName: { color: theme.colors.textStrong, fontSize: 14, fontWeight: '900', marginTop: 3 },\n  detectedFoodMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },\n  detectedFoodKcal: { color: theme.colors.navy, fontSize: 13, fontWeight: '900' },\n  servingLabel: { color: theme.colors.text, fontSize: 9, fontWeight: '900', marginTop: 12, marginBottom: 5 },\n  servingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },\n  servingButton: { width: 38, height: 38, borderRadius: 11, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' },\n  servingButtonText: { color: theme.colors.navy, fontSize: 20, fontWeight: '900' },\n  servingInput: { width: 72, height: 38, borderRadius: 11, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, color: theme.colors.textStrong, textAlign: 'center', fontWeight: '900' },\n  estimateText: { color: theme.colors.textMuted, fontSize: 8, lineHeight: 13, marginTop: 9 },\n  catalogHint: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 8 },\n  macroInputTitle: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900', marginTop: 12 },\n  primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 13, paddingVertical: 13, alignItems: 'center', marginTop: 11 },`,
+  'estilos do catálogo',
+);
+
+fs.writeFileSync(path, source);
+console.log('NutritionScreen atualizado com busca alimentar e cálculo automático.');

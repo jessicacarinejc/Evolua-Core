@@ -13,6 +13,7 @@ import { api, MealType, NutritionDay } from '../api/client';
 import { loadPersonalizedMealPlan, PersonalizedMealPlan } from '../api/meal-plan';
 import { MealPlanCard } from '../components/MealPlanCard';
 import { OnboardingData } from '../onboarding/types';
+import { FoodCatalogItem, findExactFood, scaleFood, searchFoodCatalog } from '../nutrition/food-catalog';
 import { theme } from '../theme';
 
 type Props = {
@@ -85,6 +86,8 @@ export function NutritionScreen({ profile, token }: Props) {
   const [protein, setProtein] = useState('');
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [selectedFood, setSelectedFood] = useState<FoodCatalogItem | null>(null);
+  const [servings, setServings] = useState('1');
   const [targetCalories, setTargetCalories] = useState('');
   const [targetProtein, setTargetProtein] = useState('');
   const [targetWater, setTargetWater] = useState('');
@@ -127,6 +130,56 @@ export function NutritionScreen({ profile, token }: Props) {
     }
   };
 
+  const applySelectedFood = (item: FoodCatalogItem, nextServings = 1) => {
+    const scaled = scaleFood(item, nextServings);
+    setSelectedFood(item);
+    setFoodName(item.name);
+    setServings(String(nextServings));
+    setCalories(String(Math.round(scaled.caloriesKcal)));
+    setProtein(scaled.proteinG.toFixed(1));
+    setCarbs(scaled.carbsG.toFixed(1));
+    setFat(scaled.fatG.toFixed(1));
+  };
+
+  const handleFoodNameChange = (value: string) => {
+    setFoodName(value);
+    const exact = findExactFood(value);
+    if (exact) {
+      applySelectedFood(exact, 1);
+      return;
+    }
+    setSelectedFood(null);
+    setServings('1');
+    setCalories('');
+    setProtein('');
+    setCarbs('');
+    setFat('');
+  };
+
+  const handleServingsChange = (value: string) => {
+    setServings(value);
+    if (!selectedFood) return;
+    const parsed = Number(value.replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0) return;
+    const scaled = scaleFood(selectedFood, parsed);
+    setCalories(String(Math.round(scaled.caloriesKcal)));
+    setProtein(scaled.proteinG.toFixed(1));
+    setCarbs(scaled.carbsG.toFixed(1));
+    setFat(scaled.fatG.toFixed(1));
+  };
+
+  const stepServings = (delta: number) => {
+    if (!selectedFood) return;
+    const current = Number(servings.replace(',', '.'));
+    const base = Number.isFinite(current) && current > 0 ? current : 1;
+    const next = Math.max(0.5, Math.round((base + delta) * 2) / 2);
+    applySelectedFood(selectedFood, next);
+  };
+
+  const foodSuggestions = foodName.trim().length >= 2 && !selectedFood
+    ? searchFoodCatalog(foodName).slice(0, 4)
+    : [];
+
   const addMeal = async () => {
     if (!token) return;
     if (!foodName.trim()) {
@@ -137,7 +190,7 @@ export function NutritionScreen({ profile, token }: Props) {
     try {
       const result = await api.addMealEntry(token, {
         mealType,
-        name: foodName.trim(),
+        name: selectedFood ? `${selectedFood.name} · ${servings} × ${selectedFood.servingLabel}` : foodName.trim(),
         caloriesKcal: numberFromText(calories),
         proteinG: numberFromText(protein),
         carbsG: numberFromText(carbs),
@@ -149,6 +202,8 @@ export function NutritionScreen({ profile, token }: Props) {
       setProtein('');
       setCarbs('');
       setFat('');
+      setSelectedFood(null);
+      setServings('1');
     } catch (cause) {
       Alert.alert('Refeição não registrada', cause instanceof Error ? cause.message : 'Tente novamente.');
     } finally {
@@ -230,7 +285,7 @@ export function NutritionScreen({ profile, token }: Props) {
       <View style={styles.formCard}>
         <Text style={styles.sectionEyebrow}>DIÁRIO ALIMENTAR</Text>
         <Text style={styles.sectionTitle}>Adicionar alimento</Text>
-        <Text style={styles.formHelp}>Os dados nutricionais são opcionais nesta fase. Quando informados, entram no resumo do dia.</Text>
+        <Text style={styles.formHelp}>Digite o alimento. Quando ele estiver no catálogo, o Evolua Core calcula automaticamente calorias e macronutrientes pela porção escolhida.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {mealOptions.map((option) => (
             <TouchableOpacity key={option.key} onPress={() => setMealType(option.key)} style={[styles.chip, mealType === option.key && styles.chipActive]}>
@@ -238,7 +293,45 @@ export function NutritionScreen({ profile, token }: Props) {
             </TouchableOpacity>
           ))}
         </ScrollView>
-        <TextInput value={foodName} onChangeText={setFoodName} placeholder="Ex.: banana com aveia" style={styles.fullInput} />
+        <TextInput value={foodName} onChangeText={handleFoodNameChange} placeholder="Digite: ovo, pão francês, feijão..." style={styles.fullInput} />
+
+        {foodSuggestions.length > 0 ? (
+          <View style={styles.suggestionList}>
+            {foodSuggestions.map((item) => (
+              <TouchableOpacity key={item.id} onPress={() => applySelectedFood(item, 1)} style={styles.suggestionItem}>
+                <View style={styles.suggestionCopy}>
+                  <Text style={styles.suggestionName}>{item.name}</Text>
+                  <Text style={styles.suggestionMeta}>{item.servingLabel} · {Math.round(item.caloriesKcal)} kcal</Text>
+                </View>
+                <Text style={styles.suggestionAction}>Usar</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
+
+        {selectedFood ? (
+          <View style={styles.detectedFoodCard}>
+            <View style={styles.detectedFoodTop}>
+              <View style={styles.detectedFoodCopy}>
+                <Text style={styles.detectedFoodEyebrow}>ALIMENTO IDENTIFICADO</Text>
+                <Text style={styles.detectedFoodName}>{selectedFood.name}</Text>
+                <Text style={styles.detectedFoodMeta}>{selectedFood.servingLabel} · {selectedFood.sourceLabel}</Text>
+              </View>
+              <Text style={styles.detectedFoodKcal}>{calories || '0'} kcal</Text>
+            </View>
+            <Text style={styles.servingLabel}>Quantidade de porções</Text>
+            <View style={styles.servingRow}>
+              <TouchableOpacity onPress={() => stepServings(-0.5)} style={styles.servingButton}><Text style={styles.servingButtonText}>−</Text></TouchableOpacity>
+              <TextInput value={servings} onChangeText={handleServingsChange} keyboardType="decimal-pad" style={styles.servingInput} />
+              <TouchableOpacity onPress={() => stepServings(0.5)} style={styles.servingButton}><Text style={styles.servingButtonText}>+</Text></TouchableOpacity>
+            </View>
+            <Text style={styles.estimateText}>Estimativa por porção. Marca, tamanho e modo de preparo podem alterar os valores.</Text>
+          </View>
+        ) : (
+          <Text style={styles.catalogHint}>Se não houver correspondência no catálogo, você ainda pode informar os valores manualmente abaixo.</Text>
+        )}
+
+        <Text style={styles.macroInputTitle}>Valores nutricionais</Text>
         <View style={styles.inputRow}>
           <TextInput value={calories} onChangeText={setCalories} keyboardType="decimal-pad" placeholder="kcal" style={styles.smallInput} />
           <TextInput value={protein} onChangeText={setProtein} keyboardType="decimal-pad" placeholder="proteína g" style={styles.smallInput} />
@@ -321,7 +414,7 @@ const styles = StyleSheet.create({
   loadingText: { color: theme.colors.textMuted, fontWeight: '700' },
   content: { padding: 24, paddingBottom: 44, backgroundColor: theme.colors.background },
   pageEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: theme.colors.navy, fontSize: 29, fontWeight: '900', marginTop: 6 },
+  title: { color: theme.colors.textStrong, fontSize: 29, fontWeight: '900', marginTop: 6 },
   intro: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 9, marginBottom: 16 },
   summaryCard: { backgroundColor: theme.colors.navy, borderRadius: 21, padding: 18, marginBottom: 13 },
   summaryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
@@ -336,13 +429,13 @@ const styles = StyleSheet.create({
   progressBar: { height: 7, borderRadius: 8, backgroundColor: theme.colors.lime },
   macroRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   macroText: { color: '#C8D4E3', fontSize: 9 },
-  quickCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
+  quickCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
   sectionEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
-  sectionTitle: { color: theme.colors.navy, fontSize: 18, fontWeight: '900', marginTop: 4 },
+  sectionTitle: { color: theme.colors.textStrong, fontSize: 18, fontWeight: '900', marginTop: 4 },
   quickRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
-  waterButton: { flex: 1, backgroundColor: '#EDF3E2', borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
-  waterButtonText: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
-  formCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 19, padding: 17, marginBottom: 12 },
+  waterButton: { flex: 1, backgroundColor: theme.colors.tintSurface, borderRadius: 12, paddingVertical: 11, alignItems: 'center' },
+  waterButtonText: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900' },
+  formCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 19, padding: 17, marginBottom: 12 },
   formHelp: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 6 },
   chipRow: { gap: 7, paddingVertical: 11 },
   chip: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 999, paddingHorizontal: 11, paddingVertical: 8 },
@@ -352,29 +445,50 @@ const styles = StyleSheet.create({
   fullInput: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 11, marginTop: 8, color: theme.colors.text, backgroundColor: '#F9FBFD' },
   inputRow: { flexDirection: 'row', gap: 8 },
   smallInput: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 11, marginTop: 8, color: theme.colors.text, backgroundColor: '#F9FBFD' },
+  suggestionList: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 13, overflow: 'hidden', marginTop: 6 },
+  suggestionItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  suggestionCopy: { flex: 1 },
+  suggestionName: { color: theme.colors.textStrong, fontSize: 12, fontWeight: '900' },
+  suggestionMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 2 },
+  suggestionAction: { color: theme.colors.navy, fontSize: 10, fontWeight: '900' },
+  detectedFoodCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 14, padding: 13, marginTop: 9 },
+  detectedFoodTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  detectedFoodCopy: { flex: 1 },
+  detectedFoodEyebrow: { color: theme.colors.success, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  detectedFoodName: { color: theme.colors.textStrong, fontSize: 14, fontWeight: '900', marginTop: 3 },
+  detectedFoodMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 3 },
+  detectedFoodKcal: { color: theme.colors.navy, fontSize: 13, fontWeight: '900' },
+  servingLabel: { color: theme.colors.text, fontSize: 9, fontWeight: '900', marginTop: 12, marginBottom: 5 },
+  servingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  servingButton: { width: 38, height: 38, borderRadius: 11, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center', justifyContent: 'center' },
+  servingButtonText: { color: theme.colors.navy, fontSize: 20, fontWeight: '900' },
+  servingInput: { width: 72, height: 38, borderRadius: 11, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, color: theme.colors.textStrong, textAlign: 'center', fontWeight: '900' },
+  estimateText: { color: theme.colors.textMuted, fontSize: 8, lineHeight: 13, marginTop: 9 },
+  catalogHint: { color: theme.colors.textMuted, fontSize: 9, lineHeight: 14, marginTop: 8 },
+  macroInputTitle: { color: theme.colors.textStrong, fontSize: 10, fontWeight: '900', marginTop: 12 },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 13, paddingVertical: 13, alignItems: 'center', marginTop: 11 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900' },
   secondaryButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 13, paddingVertical: 12, alignItems: 'center', marginTop: 10 },
-  secondaryButtonText: { color: theme.colors.navy, fontWeight: '900' },
+  secondaryButtonText: { color: theme.colors.textStrong, fontWeight: '900' },
   sectionTitleOutside: { color: theme.colors.text, fontSize: 19, fontWeight: '900', marginTop: 18, marginBottom: 9 },
-  mealLogCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 13, marginBottom: 7 },
+  mealLogCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 13, marginBottom: 7 },
   mealLogTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  mealLogName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900', flex: 1 },
+  mealLogName: { color: theme.colors.textStrong, fontSize: 12, fontWeight: '900', flex: 1 },
   mealLogCalories: { color: theme.colors.text, fontSize: 10, fontWeight: '900' },
   mealLogMeta: { color: theme.colors.textMuted, fontSize: 9, marginTop: 4, textTransform: 'capitalize' },
-  emptyCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 14 },
-  targetCard: { backgroundColor: '#EDF3E2', borderRadius: 18, padding: 16, marginTop: 15 },
-  targetTitle: { color: theme.colors.navy, fontSize: 17, fontWeight: '900', marginTop: 4 },
+  emptyCard: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 14 },
+  targetCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 18, padding: 16, marginTop: 15 },
+  targetTitle: { color: theme.colors.textStrong, fontSize: 17, fontWeight: '900', marginTop: 4 },
   restrictionCard: { backgroundColor: '#FFF4E5', borderRadius: 16, padding: 15, marginTop: 13 },
   restrictionTitle: { color: theme.colors.warning, fontWeight: '900', fontSize: 13 },
   restrictionText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 6 },
-  tipCard: { backgroundColor: theme.colors.white, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 12 },
+  tipCard: { backgroundColor: theme.colors.surface, borderRadius: 20, padding: 18, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 12 },
   eyebrow: { color: theme.colors.lime, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  tipTitle: { color: theme.colors.navy, fontSize: 19, fontWeight: '900', marginTop: 5, marginBottom: 7 },
+  tipTitle: { color: theme.colors.textStrong, fontSize: 19, fontWeight: '900', marginTop: 5, marginBottom: 7 },
   body: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 19 },
   label: { color: theme.colors.text, fontWeight: '900', fontSize: 11, marginTop: 12, marginBottom: 4 },
-  strategy: { backgroundColor: '#EDF3E2', color: theme.colors.navy, fontSize: 11, lineHeight: 18, borderRadius: 12, padding: 12, marginTop: 12, fontWeight: '700' },
-  noticeCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 16, marginTop: 14 },
-  noticeTitle: { color: theme.colors.navy, fontSize: 13, fontWeight: '900' },
+  strategy: { backgroundColor: theme.colors.tintSurface, color: theme.colors.textStrong, fontSize: 11, lineHeight: 18, borderRadius: 12, padding: 12, marginTop: 12, fontWeight: '700' },
+  noticeCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 16, padding: 16, marginTop: 14 },
+  noticeTitle: { color: theme.colors.textStrong, fontSize: 13, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },
 });

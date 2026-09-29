@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { api } from '../api/client';
+import type { AppearancePreference } from '../appearance';
 import { OnboardingData, PrimaryGoal, TrainingLevel, initialOnboardingData } from '../onboarding/types';
 import { theme } from '../theme';
 
@@ -17,6 +18,8 @@ type Props = {
   token: string | null;
   profile: OnboardingData | null;
   onProfileUpdated: (profile: OnboardingData) => void;
+  appearancePreference: AppearancePreference;
+  onAppearanceChange: (preference: AppearancePreference) => void;
 };
 
 const goals: Array<{ key: PrimaryGoal; label: string }> = [
@@ -45,7 +48,7 @@ function splitList(value: string) {
     .filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index);
 }
 
-export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
+export function ProfileScreen({ token, profile, onProfileUpdated, appearancePreference, onAppearanceChange }: Props) {
   const [form, setForm] = useState<OnboardingData>(profile ?? initialOnboardingData);
   const [equipment, setEquipment] = useState(joinList(profile?.equipment ?? []));
   const [conditions, setConditions] = useState(joinList(profile?.healthConditions ?? []));
@@ -138,6 +141,22 @@ export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
       <Text style={styles.eyebrow}>PERFIL</Text>
       <Text style={styles.title}>Suas preferências e informações</Text>
       <Text style={styles.subtitle}>Alterações de objetivo, disponibilidade, equipamentos, dores e restrições passam a ser consideradas nas próximas recomendações automáticas.</Text>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Aparência</Text>
+        <Text style={styles.helper}>Use o tema claro mais leve, o escuro ou acompanhe automaticamente o celular.</Text>
+        <View style={styles.chips}>
+          {([
+            { key: 'light', label: 'Claro' },
+            { key: 'dark', label: 'Escuro' },
+            { key: 'system', label: 'Sistema' },
+          ] as const).map((option) => (
+            <TouchableOpacity key={option.key} onPress={() => onAppearanceChange(option.key)} style={[styles.chip, appearancePreference === option.key && styles.chipActive]}>
+              <Text style={[styles.chipText, appearancePreference === option.key && styles.chipTextActive]}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Dados pessoais</Text>
@@ -235,10 +254,10 @@ const styles = StyleSheet.create({
   loadingText: { color: theme.colors.textMuted, fontWeight: '700' },
   content: { padding: 24, paddingBottom: 44, backgroundColor: theme.colors.background },
   eyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: theme.colors.navy, fontSize: 29, fontWeight: '900', marginTop: 6 },
+  title: { color: theme.colors.textStrong, fontSize: 29, fontWeight: '900', marginTop: 6 },
   subtitle: { color: theme.colors.textMuted, fontSize: 13, lineHeight: 20, marginTop: 8, marginBottom: 16 },
-  card: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
-  sectionTitle: { color: theme.colors.navy, fontSize: 16, fontWeight: '900' },
+  card: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
+  sectionTitle: { color: theme.colors.textStrong, fontSize: 16, fontWeight: '900' },
   sectionSpacing: { marginTop: 18 },
   label: { color: theme.colors.text, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 5 },
   helper: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 5 },
@@ -253,12 +272,12 @@ const styles = StyleSheet.create({
   chipTextActive: { color: theme.colors.white },
   numberRow: { flexDirection: 'row', gap: 7, marginTop: 4, marginBottom: 5 },
   numberButton: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 11, paddingVertical: 10, alignItems: 'center' },
-  numberButtonActive: { backgroundColor: '#EDF3E2', borderColor: theme.colors.lime },
+  numberButtonActive: { backgroundColor: theme.colors.tintSurface, borderColor: theme.colors.lime },
   numberText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '900' },
   numberTextActive: { color: theme.colors.navy },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 3 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 14 },
-  noticeCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 16, marginTop: 14 },
-  noticeTitle: { color: theme.colors.navy, fontSize: 13, fontWeight: '900' },
+  noticeCard: { backgroundColor: theme.colors.tintSurface, borderRadius: 16, padding: 16, marginTop: 14 },
+  noticeTitle: { color: theme.colors.textStrong, fontSize: 13, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },
 });
