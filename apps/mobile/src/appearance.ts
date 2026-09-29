@@ -9,20 +9,32 @@ const VALID = new Set<AppearancePreference>(['system', 'light', 'dark']);
 type SetColorScheme = (scheme: 'light' | 'dark' | null) => void;
 
 export function applyAppearancePreference(preference: AppearancePreference) {
-  const setColorScheme = Appearance.setColorScheme as SetColorScheme;
-  setColorScheme(preference === 'system' ? null : preference);
+  try {
+    const setColorScheme = Appearance.setColorScheme as SetColorScheme;
+    setColorScheme(preference === 'system' ? null : preference);
+  } catch {
+    // A preferência visual nunca pode impedir o app de iniciar.
+  }
 }
 
 export async function loadAppearancePreference(): Promise<AppearancePreference> {
-  const saved = await SecureStore.getItemAsync(APPEARANCE_KEY);
-  const preference = saved && VALID.has(saved as AppearancePreference)
-    ? saved as AppearancePreference
-    : 'system';
+  let preference: AppearancePreference = 'system';
+  try {
+    const saved = await SecureStore.getItemAsync(APPEARANCE_KEY);
+    if (saved && VALID.has(saved as AppearancePreference)) {
+      preference = saved as AppearancePreference;
+    }
+  } catch {
+    preference = 'system';
+  }
   applyAppearancePreference(preference);
   return preference;
 }
 
 export async function saveAppearancePreference(preference: AppearancePreference) {
-  await SecureStore.setItemAsync(APPEARANCE_KEY, preference);
-  applyAppearancePreference(preference);
+  try {
+    await SecureStore.setItemAsync(APPEARANCE_KEY, preference);
+  } finally {
+    applyAppearancePreference(preference);
+  }
 }
