@@ -1,16 +1,16 @@
 import { DynamicColorIOS, Platform, PlatformColor } from 'react-native';
 
-function adaptiveColor(light: string, dark: string, androidAttribute: string) {
+function adaptiveColor(light: string, dark: string, androidAttribute: string, androidFallback: string) {
   if (Platform.OS === 'ios') return DynamicColorIOS({ light, dark });
-  if (Platform.OS === 'android') return PlatformColor(androidAttribute);
+  if (Platform.OS === 'android') return PlatformColor(androidAttribute, androidFallback);
   return light;
 }
 
-const background = adaptiveColor('#FBFAF7', '#0D1117', '?android:attr/colorBackground');
-const surface = adaptiveColor('#FFFFFF', '#171C24', '?android:attr/colorBackgroundFloating');
-const text = adaptiveColor('#1A2433', '#F4F6F8', '?android:attr/textColorPrimary');
-const textMuted = adaptiveColor('#737D8B', '#B6BEC9', '?android:attr/textColorSecondary');
-const inputSurface = adaptiveColor('#FFFFFF', '#151B23', '?android:attr/colorBackgroundFloating');
+const background = adaptiveColor('#FBFAF7', '#0D1117', '?attr/colorBackground', '@android:color/background_light');
+const surface = adaptiveColor('#FFFFFF', '#171C24', '?attr/colorBackgroundFloating', '?attr/colorBackground');
+const text = adaptiveColor('#1A2433', '#F4F6F8', '?attr/textColorPrimary', '@android:color/primary_text_light');
+const textMuted = adaptiveColor('#737D8B', '#B6BEC9', '?attr/textColorSecondary', '@android:color/secondary_text_light');
+const inputSurface = adaptiveColor('#FFFFFF', '#151B23', '?attr/colorBackgroundFloating', '?attr/colorBackground');
 
 export const theme = {
   colors: {
