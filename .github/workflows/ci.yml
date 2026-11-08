@@ -41,6 +41,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Testar catálogo nutricional e substituições
+        run: node --experimental-strip-types scripts/test-nutrition-catalog.mjs
+
       - name: Build da API
         run: npm run api:build
 
