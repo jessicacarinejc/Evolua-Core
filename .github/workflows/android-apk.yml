@@ -61,6 +61,37 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Diagnosticar publicações no Expo Autolinking
+        run: |
+          node - <<'NODE'
+          const { spawnSync } = require('node:child_process');
+          const result = spawnSync('npx', ['expo-modules-autolinking', 'resolve', '--platform', 'android', '--json'], {
+            cwd: 'apps/mobile', encoding: 'utf8', maxBuffer: 32 * 1024 * 1024
+          });
+          if (result.status !== 0) {
+            console.log('Falha ao diagnosticar autolinking:', result.stderr?.slice(-4000));
+            process.exit(0);
+          }
+          try {
+            const parsed = JSON.parse(result.stdout);
+            const modules = parsed.modules ?? [];
+            console.log('Expo Autolinking:', modules.length, 'módulos');
+            for (const [index, entry] of modules.entries()) {
+              for (const [projectIndex, project] of (entry.projects ?? []).entries()) {
+                if (project.publication && !project.publication.version) {
+                  console.log('PUBLICATION_MISSING_VERSION:', JSON.stringify({
+                    index, packageName: entry.packageName, packageVersion: entry.packageVersion,
+                    projectIndex, project: project.name, publication: project.publication,
+                  }));
+                }
+              }
+            }
+          } catch (cause) {
+            console.log('Falha ao interpretar autolinking:', String(cause));
+            console.log(result.stdout?.slice(0, 500));
+          }
+          NODE
+
       - name: Preparar ferramentas de mídia
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
