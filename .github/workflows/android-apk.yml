@@ -82,6 +82,8 @@ jobs:
             }
           }
           NODE
+          echo 'Diagnóstico temporário concluído; interrompendo antes da compilação pesada.'
+          exit 1
 
       - name: Preparar ferramentas de mídia
         run: |
