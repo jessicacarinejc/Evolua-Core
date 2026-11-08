@@ -5,7 +5,7 @@ As telas de referência enviadas pela usuária foram usadas somente para levanta
 ## Requisitos consolidados
 
 ### Objetivos
-- permitir de 1 a 3 objetivos simultâneos;
+- permitir selecionar livremente todos os objetivos oferecidos no catálogo, com múltiplos objetivos simultâneos;
 - manter um objetivo prioritário;
 - cobrir composição corporal, força/performance, cardio, mobilidade, corpo-mente, esportes e saúde/manutenção.
 
