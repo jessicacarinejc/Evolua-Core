@@ -66,24 +66,27 @@ jobs:
           npm --workspace @evolua/mobile exec -- expo install --fix --npm
           npm --workspace @evolua/mobile exec -- expo install --check
 
-      - name: Diagnosticar metadados nativos do Expo
+      - name: Auditar compatibilidade Android do Expo
         run: |
           cd apps/mobile
           npx expo-modules-autolinking resolve --platform android --json > /tmp/evolua-modules.json
           node - <<'NODE'
-          const fs = require('node:fs');
-          const parsed = JSON.parse(fs.readFileSync('/tmp/evolua-modules.json','utf8'));
-          for (const [i, module] of (parsed.modules || []).entries()) {
-            console.log('MÓDULO', i, module.packageName, module.packageVersion);
-            for (const [j, project] of (module.projects || []).entries()) {
-              console.log('  PROJETO', j, project.name,
-                'publication:', JSON.stringify(project.publication ?? null),
-                'projectDir:', project.projectDir ?? null);
+          const fs=require('node:fs');
+          const modules=JSON.parse(fs.readFileSync('/tmp/evolua-modules.json','utf8')).modules || [];
+          const errors=[];
+          for(const module of modules){
+            const version=String(module.packageVersion ?? '');
+            if((module.packageName.startsWith('expo-')||module.packageName==='expo') && !version.startsWith('56.')){
+              errors.push(module.packageName+' '+version+' incompatível com SDK 56');
+            }
+            for(const project of (module.projects||[])){
+              if(project.publication && !project.publication.version) errors.push(module.packageName+': publication.version ausente');
             }
           }
+          console.log('Expo Android: '+modules.length+' módulos; verificando SDK 56 e publicações nativas.');
+          if(errors.length){ console.error(errors.join('\\n')); process.exit(1); }
+          console.log('Expo Android: compatibilidade aprovada.');
           NODE
-          echo 'Diagnóstico temporário concluído; interrompendo antes da compilação pesada.'
-          exit 1
 
       - name: Preparar ferramentas de mídia
         run: |
