@@ -26,6 +26,19 @@
       "license": "Domínio público — obra do governo federal dos EUA (CDC)",
       "attribution": "Centers for Disease Control and Prevention (CDC) — Muscle Strengthening at the Gym - Leg Curl; convertido para MP4 e sem áudio para uso offline no Evolua Core",
       "adapted": true
+    },
+    {
+      "slug": "supino-halteres",
+      "sourceKind": "external-realistic",
+      "sourceFile": "supino-halteres-real.mp4",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Video_showing_how_to_perform_the_dumbbell_bench_press_and_the_dumbbell_incline_bench_press.webm",
+      "sourcePageUrl": "https://commons.wikimedia.org/wiki/File:Video_showing_how_to_perform_the_dumbbell_bench_press_and_the_dumbbell_incline_bench_press.webm",
+      "finalQuality": "realistic-human-demo",
+      "motionMatch": "verified",
+      "licenseAudit": "verified",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Gantner626 — Video showing how to perform the dumbbell bench press and the dumbbell incline bench press (Wikimedia Commons); adaptado para MP4 sem áudio. Adaptação de vídeo sob CC BY-SA 4.0.",
+      "adapted": true
     }
   ]
 }
