@@ -14,6 +14,7 @@ import { loadPersonalizedMealPlan, PersonalizedMealPlan } from '../api/meal-plan
 import { MealPlanCard } from '../components/MealPlanCard';
 import { OnboardingData } from '../onboarding/types';
 import { theme } from '../theme';
+import { QuickFoodLogger } from '../nutrition/QuickFoodLogger';
 
 type Props = {
   profile: OnboardingData | null;
@@ -192,8 +193,8 @@ export function NutritionScreen({ profile, token }: Props) {
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
       <Text style={styles.pageEyebrow}>NUTRIÇÃO</Text>
-      <Text style={styles.title}>Seu diário alimentar e hidratação</Text>
-      <Text style={styles.intro}>Registre o que consumiu e acompanhe suas próprias metas. O app não transforma metas de acompanhamento em prescrição clínica.</Text>
+      <Text style={styles.title}>Seu dia, suas escolhas</Text>
+      <Text style={styles.intro}>Alimentos regionais, receitas para o trabalho e macros automáticos. Acompanhe suas metas sem dietas radicais.</Text>
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
@@ -214,6 +215,7 @@ export function NutritionScreen({ profile, token }: Props) {
       </View>
 
       {mealPlan ? <MealPlanCard plan={mealPlan} /> : null}
+      {token ? <QuickFoodLogger token={token} mealType={mealType} restrictions={restrictions} onSaved={setDay} /> : null}
 
       <View style={styles.quickCard}>
         <Text style={styles.sectionEyebrow}>HIDRATAÇÃO</Text>
@@ -229,8 +231,8 @@ export function NutritionScreen({ profile, token }: Props) {
 
       <View style={styles.formCard}>
         <Text style={styles.sectionEyebrow}>DIÁRIO ALIMENTAR</Text>
-        <Text style={styles.sectionTitle}>Adicionar alimento</Text>
-        <Text style={styles.formHelp}>Os dados nutricionais são opcionais nesta fase. Quando informados, entram no resumo do dia.</Text>
+        <Text style={styles.sectionTitle}>Adicionar alimento pelo rótulo</Text>
+        <Text style={styles.formHelp}>Se o alimento não está no catálogo acima, registre manualmente os valores do rótulo. Sem eles, a refeição não soma nutrientes.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
           {mealOptions.map((option) => (
             <TouchableOpacity key={option.key} onPress={() => setMealType(option.key)} style={[styles.chip, mealType === option.key && styles.chipActive]}>
