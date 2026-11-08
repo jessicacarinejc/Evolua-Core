@@ -46,7 +46,7 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
     ).slice(0, 6);
   }, [query]);
 
-  const food = FOOD_CATALOG.find((item) => item.id === selectedId) ?? FOOD_CATALOG[0];
+  const food: FoodItem = FOOD_CATALOG.find((item) => item.id === selectedId) ?? FOOD_CATALOG[0]!;
   const grams = Number(quantity.replace(',', '.'));
   const validGrams = Number.isFinite(grams) && grams > 0 && grams <= 2000;
   const factor = validGrams ? grams / 100 : 0;
