@@ -69,7 +69,7 @@ jobs:
       - name: Diagnosticar metadados nativos do Expo
         run: |
           cd apps/mobile
-          npx expo-modules-autolinking resolve --platform android > /tmp/evolua-modules.json
+          npx expo-modules-autolinking resolve --platform android --json > /tmp/evolua-modules.json
           node - <<'NODE'
           const fs = require('node:fs');
           const parsed = JSON.parse(fs.readFileSync('/tmp/evolua-modules.json','utf8'));
