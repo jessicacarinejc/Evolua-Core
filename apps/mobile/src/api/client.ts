@@ -299,6 +299,7 @@ function normalizeProfile(profile: any): OnboardingData | null {
     heightCm: String(profile.heightCm ?? ''),
     weightKg: String(profile.weightKg ?? ''),
     primaryGoal: profile.primaryGoal ?? '',
+    goals: Array.isArray(profile.goals) && profile.goals.length > 0 ? profile.goals : (profile.primaryGoal ? [profile.primaryGoal] : []),
     trainingLevel: profile.trainingLevel ?? '',
     trainingDaysPerWeek: Number(profile.trainingDaysPerWeek ?? 3),
     sessionMinutes: Number(profile.sessionMinutes ?? 45),

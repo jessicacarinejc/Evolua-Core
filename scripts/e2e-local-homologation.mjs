@@ -73,6 +73,7 @@ async function run() {
     heightCm: 170,
     weightKg: 70,
     primaryGoal: 'condicionamento',
+    goals: ['condicionamento', 'hipertrofia', 'forca', 'corrida', 'mobilidade', 'saude_bem_estar'],
     trainingLevel: 'iniciante',
     trainingDaysPerWeek: 3,
     sessionMinutes: 45,
@@ -88,7 +89,20 @@ async function run() {
     body: JSON.stringify(onboardingPayload),
   });
   assert(onboarding.response.ok && onboarding.payload?.accepted === true, failureMessage('Onboarding', onboarding));
-  console.log('[e2e] onboarding/perfil inicial: ok');
+  const goalProfile = await request('/profile', { headers: auth });
+  assert(goalProfile.response.ok, failureMessage('Perfil de objetivos', goalProfile));
+  assert(goalProfile.payload?.profile?.goals?.length === 6, 'A API não preservou os seis objetivos selecionados.');
+  assert(goalProfile.payload.profile.primaryGoal === 'condicionamento', 'A prioridade foi alterada indevidamente.');
+
+  const updatedGoals = [...onboardingPayload.goals, 'calistenia'];
+  const updateGoalProfile = await request('/profile', {
+    method: 'PUT',
+    headers: auth,
+    body: JSON.stringify({ ...onboardingPayload, goals: updatedGoals }),
+  });
+  assert(updateGoalProfile.response.ok, failureMessage('Atualização de objetivos', updateGoalProfile));
+  assert(updateGoalProfile.payload?.profile?.goals?.length === 7, 'A edição do perfil perdeu objetivos complementares.');
+  console.log('[e2e] onboarding/perfil inicial e seleção de sete objetivos: ok');
 
   const checkin = await request('/checkins/daily', {
     method: 'POST',

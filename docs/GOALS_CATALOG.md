@@ -1,6 +1,6 @@
 # Catálogo de objetivos do Evolua Core
 
-O onboarding permite selecionar de 1 a 3 objetivos. O primeiro selecionado é tratado como prioridade e os demais como objetivos complementares.
+O onboarding permite selecionar qualquer quantidade de objetivos disponíveis no catálogo. Um deles é marcado como prioridade, enquanto os demais são complementares.
 
 ## Composição corporal
 - Perder peso e reduzir gordura
@@ -42,7 +42,7 @@ O onboarding permite selecionar de 1 a 3 objetivos. O primeiro selecionado é tr
 - Recuperação ativa
 
 ## Regras
-- Máximo de 3 objetivos por perfil.
+- Sem limite artificial de 3 objetivos: todos os objetivos válidos do catálogo podem ser selecionados.
 - `primary_goal` é mantido por compatibilidade e representa a prioridade.
 - `goals` guarda a seleção completa.
 - O backend valida todos os valores aceitos.

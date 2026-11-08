@@ -83,7 +83,7 @@ export class OnboardingDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(3)
+  @ArrayMaxSize(GOAL_VALUES.length)
   @IsIn(GOAL_VALUES, { each: true })
   goals?: string[];
 

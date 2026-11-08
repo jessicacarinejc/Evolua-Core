@@ -14,7 +14,6 @@ import {
   exerciseTypeOptions,
   goalOptions,
   initialOnboardingData,
-  MAX_SELECTED_GOALS,
   muscleOptions,
   MusicStyle,
   OnboardingData,
@@ -135,7 +134,6 @@ export function OnboardingScreen({ onFinish }: Props) {
         return { ...current, goals: nextGoals, primaryGoal: nextPrimary };
       }
 
-      if (currentGoals.length >= MAX_SELECTED_GOALS) return current;
       const nextGoals = [...currentGoals, goal];
       return { ...current, goals: nextGoals, primaryGoal: current.primaryGoal || goal };
     });
@@ -191,9 +189,9 @@ export function OnboardingScreen({ onFinish }: Props) {
         {step === 'objetivo' && (
           <>
             <Text style={styles.title}>Quais são seus objetivos?</Text>
-            <Text style={styles.subtitle}>Escolha de 1 a {MAX_SELECTED_GOALS} objetivos. O primeiro fica como prioridade e os demais complementam a montagem dos treinos.</Text>
+            <Text style={styles.subtitle}>Escolha quantos objetivos desejar. O primeiro selecionado será a prioridade e os demais complementarão o planejamento.</Text>
             <View style={styles.selectionCounter}>
-              <Text style={styles.selectionCounterText}>{selectedGoals.length}/{MAX_SELECTED_GOALS} selecionados</Text>
+              <Text style={styles.selectionCounterText}>{selectedGoals.length} objetivo(s) selecionado(s)</Text>
               {data.primaryGoal ? <Text style={styles.primaryGoalText}>Prioridade: {goalOptions.find((option) => option.value === data.primaryGoal)?.label}</Text> : null}
             </View>
 
@@ -208,7 +206,21 @@ export function OnboardingScreen({ onFinish }: Props) {
               </View>
             ))}
 
-            {selectedGoals.length >= MAX_SELECTED_GOALS ? <Text style={styles.limitText}>Limite de {MAX_SELECTED_GOALS} objetivos atingido. Desmarque um para escolher outro.</Text> : null}
+            {selectedGoals.length > 1 ? (
+              <View style={styles.goalGroup}>
+                <Text style={styles.goalCategory}>Escolha o objetivo principal</Text>
+                <View style={styles.chips}>
+                  {selectedGoals.map((goal) => (
+                    <Chip
+                      key={goal}
+                      label={goalOptions.find((option) => option.value === goal)?.label ?? goal}
+                      active={data.primaryGoal === goal}
+                      onPress={() => setData((current) => ({ ...current, primaryGoal: goal }))}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : null}
 
             <Text style={styles.label}>Experiência atual com treino</Text>
             <View style={styles.chips}>{levelOptions.map((option) => <Chip key={option.value} label={option.label} active={data.trainingLevel === option.value} onPress={() => setData({ ...data, trainingLevel: option.value })} />)}</View>
@@ -370,7 +382,6 @@ const styles = StyleSheet.create({
   primaryGoalText: { color: theme.colors.textMuted, fontSize: 11, marginTop: 4 },
   goalGroup: { marginTop: 16 },
   goalCategory: { color: theme.colors.navy, fontWeight: '900', fontSize: 13, marginBottom: 9 },
-  limitText: { color: theme.colors.warning, fontSize: 11, fontWeight: '700', marginTop: 12, lineHeight: 17 },
   equipmentGroup: { marginTop: 17 },
   groupTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 12, marginBottom: 8 },
   preferenceRow: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 11, marginBottom: 8 },

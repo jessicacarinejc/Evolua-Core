@@ -35,8 +35,6 @@ export type GoalCategory =
   | 'Esportes e modalidades'
   | 'Saúde e manutenção';
 
-export const MAX_SELECTED_GOALS = 3;
-
 export const goalOptions: Array<{ value: PrimaryGoal; label: string; category: GoalCategory }> = [
   { value: 'emagrecimento', label: 'Perder peso e reduzir gordura', category: 'Composição corporal' },
   { value: 'hipertrofia', label: 'Ganhar massa muscular', category: 'Composição corporal' },

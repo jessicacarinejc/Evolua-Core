@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { api } from '../api/client';
-import { OnboardingData, PrimaryGoal, TrainingLevel, initialOnboardingData } from '../onboarding/types';
+import { OnboardingData, PrimaryGoal, TrainingLevel, goalOptions, initialOnboardingData } from '../onboarding/types';
 import { theme } from '../theme';
 
 type Props = {
@@ -19,13 +19,7 @@ type Props = {
   onProfileUpdated: (profile: OnboardingData) => void;
 };
 
-const goals: Array<{ key: PrimaryGoal; label: string }> = [
-  { key: 'emagrecimento', label: 'Emagrecimento' },
-  { key: 'hipertrofia', label: 'Hipertrofia' },
-  { key: 'forca', label: 'Força' },
-  { key: 'condicionamento', label: 'Condicionamento' },
-  { key: 'manutencao', label: 'Manutenção' },
-];
+const goalCategories = [...new Set(goalOptions.map((option) => option.category))];
 
 const levels: Array<{ key: TrainingLevel; label: string }> = [
   { key: 'iniciante', label: 'Iniciante' },
@@ -87,6 +81,21 @@ export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
     })();
   }, [token]);
 
+  const selectedGoals = form.goals?.length ? form.goals : (form.primaryGoal ? [form.primaryGoal] : []);
+
+  const toggleGoal = (goal: PrimaryGoal) => {
+    setForm((current) => {
+      const previous = current.goals?.length ? current.goals : (current.primaryGoal ? [current.primaryGoal] : []);
+      const goals = previous.includes(goal) ? previous.filter((value) => value !== goal) : [...previous, goal];
+      const primaryGoal = goals.includes(current.primaryGoal as PrimaryGoal) ? current.primaryGoal : (goals[0] ?? '');
+      return { ...current, goals, primaryGoal };
+    });
+  };
+
+  const choosePrimaryGoal = (goal: PrimaryGoal) => {
+    setForm((current) => ({ ...current, primaryGoal: goal }));
+  };
+
   const save = async () => {
     if (!token) return;
     if (!form.displayName.trim() || !form.birthDate.trim() || !form.heightCm.trim() || !form.weightKg.trim() || !form.primaryGoal || !form.trainingLevel) {
@@ -95,6 +104,7 @@ export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
     }
     const payload: OnboardingData = {
       ...form,
+      goals: selectedGoals,
       equipment: splitList(equipment),
       healthConditions: splitList(conditions),
       painAreas: splitList(painAreas),
@@ -160,14 +170,44 @@ export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Objetivo</Text>
-        <View style={styles.chips}>
-          {goals.map((goal) => (
-            <TouchableOpacity key={goal.key} onPress={() => setForm((current) => ({ ...current, primaryGoal: goal.key }))} style={[styles.chip, form.primaryGoal === goal.key && styles.chipActive]}>
-              <Text style={[styles.chipText, form.primaryGoal === goal.key && styles.chipTextActive]}>{goal.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <Text style={styles.sectionTitle}>Seus objetivos</Text>
+        <Text style={styles.helper}>Marque quantos desejar. Um deles será a prioridade para a organização do plano.</Text>
+        <Text style={styles.selectedCount}>{selectedGoals.length} objetivo(s) selecionado(s)</Text>
+        {goalCategories.map((category) => (
+          <View key={category} style={styles.goalCategoryBlock}>
+            <Text style={styles.goalCategoryTitle}>{category}</Text>
+            {goalOptions.filter((option) => option.category === category).map((option) => {
+              const selected = selectedGoals.includes(option.value);
+              const isPrimary = form.primaryGoal === option.value;
+              return (
+                <View key={option.value} style={styles.goalRow}>
+                  <TouchableOpacity
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: selected }}
+                    onPress={() => toggleGoal(option.value)}
+                    style={[styles.goalChoice, selected && styles.goalChoiceActive]}
+                  >
+                    <Text style={[styles.goalChoiceText, selected && styles.goalChoiceTextActive]}>
+                      {selected ? '✓ ' : '+ '}{option.label}
+                    </Text>
+                  </TouchableOpacity>
+                  {selected ? (
+                    <TouchableOpacity
+                      onPress={() => choosePrimaryGoal(option.value)}
+                      disabled={isPrimary}
+                      accessibilityRole="button"
+                      style={[styles.goalPriority, isPrimary && styles.goalPriorityActive]}
+                    >
+                      <Text style={[styles.goalPriorityText, isPrimary && styles.goalPriorityTextActive]}>
+                        {isPrimary ? '★ Principal' : '☆ Priorizar'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+        ))}
         <Text style={[styles.sectionTitle, styles.sectionSpacing]}>Nível de treino</Text>
         <View style={styles.chips}>
           {levels.map((level) => (
@@ -240,6 +280,18 @@ const styles = StyleSheet.create({
   card: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
   sectionTitle: { color: theme.colors.navy, fontSize: 16, fontWeight: '900' },
   sectionSpacing: { marginTop: 18 },
+  selectedCount: { color: theme.colors.navy, fontWeight: '800', fontSize: 12, marginTop: 12 },
+  goalCategoryBlock: { marginTop: 15 },
+  goalCategoryTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 12, marginBottom: 7 },
+  goalRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 7 },
+  goalChoice: { flex: 1, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.white, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 10 },
+  goalChoiceActive: { borderColor: theme.colors.lime, backgroundColor: '#EDF3E2' },
+  goalChoiceText: { color: theme.colors.textMuted, fontSize: 11, fontWeight: '700' },
+  goalChoiceTextActive: { color: theme.colors.navy, fontWeight: '900' },
+  goalPriority: { minWidth: 84, paddingHorizontal: 8, paddingVertical: 11, alignItems: 'center', borderRadius: 10, backgroundColor: theme.colors.background },
+  goalPriorityActive: { backgroundColor: theme.colors.navy },
+  goalPriorityText: { color: theme.colors.textMuted, fontSize: 10, fontWeight: '800' },
+  goalPriorityTextActive: { color: theme.colors.white },
   label: { color: theme.colors.text, fontSize: 10, fontWeight: '800', marginTop: 12, marginBottom: 5 },
   helper: { color: theme.colors.textMuted, fontSize: 10, lineHeight: 16, marginTop: 5 },
   input: { borderWidth: 1, borderColor: theme.colors.border, borderRadius: 12, paddingHorizontal: 11, paddingVertical: 11, color: theme.colors.text, backgroundColor: '#F9FBFD' },

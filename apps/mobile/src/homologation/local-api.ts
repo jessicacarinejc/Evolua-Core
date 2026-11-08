@@ -40,6 +40,9 @@ function toProfile(payload: any): OnboardingData {
     heightCm: String(payload.heightCm ?? ''),
     weightKg: String(payload.weightKg ?? ''),
     primaryGoal: payload.primaryGoal ?? '',
+    goals: Array.isArray(payload.goals) && payload.goals.length > 0
+      ? [...new Set<string>(payload.goals.filter((goal: unknown): goal is string => typeof goal === 'string'))]
+      : (payload.primaryGoal ? [payload.primaryGoal] : []),
     trainingLevel: payload.trainingLevel ?? '',
     trainingDaysPerWeek: Number(payload.trainingDaysPerWeek ?? 3),
     sessionMinutes: Number(payload.sessionMinutes ?? 45),
