@@ -206,14 +206,17 @@ function personalizedMealPlan(state: LocalHomologationState) {
   const hasBlocked = (ingredients: string[]) => ingredients.some((ingredient) => blocks.some((block) => lower(ingredient).includes(block)));
   const candidates = {
     cafe: [
+      { title: 'Cuscuz de milho com ovos', ingredients: ['cuscuz de milho', 'ovos'], tags: ['prático', 'proteína'] },
       { title: 'Aveia com banana e sementes', ingredients: ['aveia', 'banana', 'chia'], tags: ['carboidrato complexo', 'fibras'] },
       { title: 'Ovos com fruta', ingredients: ['ovos', 'fruta'], tags: ['proteína', 'prático'] },
     ],
     almoco: [
-      { title: 'Arroz, feijão, proteína e salada', ingredients: ['arroz', 'feijão', 'frango', 'salada'], tags: ['equilibrado', 'fibras'] },
+      { title: 'Arroz, feijão, frango e salada', ingredients: ['arroz', 'feijão', 'frango', 'salada'], tags: ['equilibrado', 'fibras'] },
+      { title: 'Peixe, inhame e legumes', ingredients: ['peixe', 'inhame', 'legumes'], tags: ['regional', 'proteína'] },
       { title: 'Batata, peixe e legumes', ingredients: ['batata', 'peixe', 'legumes'], tags: ['proteína', 'legumes'] },
     ],
     jantar: [
+      { title: 'Inhame, peixe e legumes', ingredients: ['inhame', 'peixe', 'legumes'], tags: ['regional', 'proteína'] },
       { title: 'Bowl de grãos, proteína e vegetais', ingredients: ['arroz', 'feijão', 'proteína', 'vegetais'], tags: ['completo', 'adaptável'] },
       { title: 'Omelete com legumes e acompanhamento', ingredients: ['ovos', 'legumes', 'batata'], tags: ['proteína', 'prático'] },
     ],
