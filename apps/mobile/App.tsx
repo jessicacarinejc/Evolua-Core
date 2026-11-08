@@ -194,6 +194,12 @@ export default function App() {
     setStage('auth');
   };
 
+  const handleSwitchUser = async () => {
+    if(token) { try { await api.logout(token); } catch { /* revogação pode falhar sem conexão */ } }
+    await clearSessionAndReturnToLogin();
+    setActiveTab('Hoje');
+  };
+
   const handleAuth = async (mode: 'login' | 'register', email: string, password: string) => {
     const response = await api.authenticate(mode, email, password);
     await sessionStore.save(response.token);
@@ -240,7 +246,7 @@ export default function App() {
     if (activeTab === 'Nutrição') return <NutritionScreen profile={profile} token={token} />;
     if (activeTab === 'Assistente') return <AssistantScreen token={token} />;
     if (activeTab === 'Evolução') return <ProgressScreen token={token} />;
-    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} />;
+    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} onSwitchUser={() => void handleSwitchUser()} />;
   }, [activeTab, profile, recovery, token]);
 
   if (stage === 'boot') {
