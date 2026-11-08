@@ -19,21 +19,25 @@ const normalize = (value: string) => value
 
 const catalog: Record<string, Candidate[]> = {
   cafe: [
+    { title: 'Cuscuz de milho, ovos e queijo branco', ingredients: ['cuscuz de milho', 'ovos', 'queijo branco'], tags: ['milho', 'ovo', 'leite', 'lactose'] },
     { title: 'Ovos, fruta e aveia', ingredients: ['ovos', 'fruta', 'aveia'], tags: ['ovo', 'aveia', 'gluten'] },
     { title: 'Tapioca com frango e fruta', ingredients: ['tapioca', 'frango', 'fruta'], tags: ['mandioca', 'frango'] },
     { title: 'Tofu, fruta e mandioca', ingredients: ['tofu', 'fruta', 'mandioca'], tags: ['soja', 'mandioca'] },
   ],
   almoco: [
     { title: 'Arroz, feijão, frango e vegetais', ingredients: ['arroz', 'feijão', 'frango', 'vegetais'], tags: ['arroz', 'feijao', 'frango'] },
+    { title: 'Peixe grelhado, inhame e legumes', ingredients: ['peixe', 'inhame', 'legumes'], tags: ['peixe', 'inhame'] },
     { title: 'Batata, peixe e vegetais', ingredients: ['batata', 'peixe', 'vegetais'], tags: ['batata', 'peixe'] },
     { title: 'Arroz, lentilha, tofu e vegetais', ingredients: ['arroz', 'lentilha', 'tofu', 'vegetais'], tags: ['arroz', 'lentilha', 'soja'] },
   ],
   lanche: [
+    { title: 'Banana-da-terra cozida e iogurte natural', ingredients: ['banana-da-terra', 'iogurte natural'], tags: ['banana', 'leite', 'lactose'] },
     { title: 'Fruta, iogurte e castanhas', ingredients: ['fruta', 'iogurte natural', 'castanhas'], tags: ['leite', 'lactose', 'castanhas'] },
     { title: 'Fruta com pasta de amendoim', ingredients: ['fruta', 'pasta de amendoim'], tags: ['amendoim'] },
     { title: 'Grão-de-bico, vegetais e tapioca', ingredients: ['grão-de-bico', 'vegetais', 'tapioca'], tags: ['grao-de-bico', 'mandioca'] },
   ],
   jantar: [
+    { title: 'Inhame cozido, peixe e legumes', ingredients: ['inhame', 'peixe', 'legumes'], tags: ['inhame', 'peixe'] },
     { title: 'Omelete, vegetais e batata', ingredients: ['ovos', 'vegetais', 'batata'], tags: ['ovo', 'batata'] },
     { title: 'Frango, arroz e vegetais', ingredients: ['frango', 'arroz', 'vegetais'], tags: ['frango', 'arroz'] },
     { title: 'Lentilha, mandioca e vegetais', ingredients: ['lentilha', 'mandioca', 'vegetais'], tags: ['lentilha', 'mandioca'] },
