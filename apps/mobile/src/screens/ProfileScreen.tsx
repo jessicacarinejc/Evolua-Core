@@ -17,6 +17,7 @@ type Props = {
   token: string | null;
   profile: OnboardingData | null;
   onProfileUpdated: (profile: OnboardingData) => void;
+  onSwitchUser: () => void;
 };
 
 const goals: Array<{ key: PrimaryGoal; label: string }> = [
@@ -45,7 +46,7 @@ function splitList(value: string) {
     .filter((item, index, items) => items.findIndex((candidate) => candidate.toLowerCase() === item.toLowerCase()) === index);
 }
 
-export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
+export function ProfileScreen({ token, profile, onProfileUpdated, onSwitchUser }: Props) {
   const [form, setForm] = useState<OnboardingData>(profile ?? initialOnboardingData);
   const [equipment, setEquipment] = useState(joinList(profile?.equipment ?? []));
   const [conditions, setConditions] = useState(joinList(profile?.healthConditions ?? []));
@@ -222,6 +223,13 @@ export function ProfileScreen({ token, profile, onProfileUpdated }: Props) {
         {saving ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Salvar alterações</Text>}
       </TouchableOpacity>
 
+      <View style={styles.switchCard}>
+        <Text style={styles.switchTitle}>Outra pessoa vai usar o Evolua Core?</Text>
+        <Text style={styles.switchHelp}>Cada pessoa usa sua própria conta, metas e histórico. Seus dados não são compartilhados.</Text>
+        <TouchableOpacity style={styles.switchButton} onPress={() => Alert.alert('Trocar de pessoa', 'Vamos encerrar esta sessão para permitir entrar ou cadastrar outra pessoa. Os registros desta conta permanecem salvos.', [{text:'Cancelar',style:'cancel'},{text:'Trocar pessoa',onPress:onSwitchUser}])}>
+          <Text style={styles.switchButtonText}>Sair e entrar com outra conta</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.noticeCard}>
         <Text style={styles.noticeTitle}>Segurança</Text>
         <Text style={styles.noticeText}>O perfil serve para personalização e regras de segurança. O aplicativo não usa essa edição para alterar medicamentos, diagnóstico ou substituir avaliação profissional.</Text>
@@ -258,6 +266,11 @@ const styles = StyleSheet.create({
   numberTextActive: { color: theme.colors.navy },
   primaryButton: { backgroundColor: theme.colors.lime, borderRadius: 14, paddingVertical: 15, alignItems: 'center', marginTop: 3 },
   primaryButtonText: { color: theme.colors.navyDark, fontWeight: '900', fontSize: 14 },
+  switchCard:{backgroundColor:theme.colors.white,borderWidth:1,borderColor:theme.colors.border,borderRadius:18,padding:16,marginTop:16},
+  switchTitle:{fontSize:15,fontWeight:'900',color:theme.colors.navy},
+  switchHelp:{fontSize:11,color:theme.colors.textMuted,lineHeight:18,marginTop:6,marginBottom:12},
+  switchButton:{paddingVertical:13,borderRadius:12,backgroundColor:theme.colors.navy,alignItems:'center'},
+  switchButtonText:{fontSize:12,color:theme.colors.white,fontWeight:'900'},
   noticeCard: { backgroundColor: '#EDF3E2', borderRadius: 16, padding: 16, marginTop: 14 },
   noticeTitle: { color: theme.colors.navy, fontSize: 13, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 11, lineHeight: 17, marginTop: 5 },

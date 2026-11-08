@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { ExerciseMotionAvatar } from './ExerciseMotionAvatar';
+// A experiência principal usa demonstrações humanas licenciadas ou instruções textuais.
+// O avatar procedural não é exibido nesta versão.
 import { getExerciseGuidance } from '../workouts/exercise-guidance';
 import { resolveExerciseMedia } from '../workouts/exercise-media';
 import { theme } from '../theme';
@@ -89,8 +90,7 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
         </View>
       </View>
 
-      <View style={[styles.stage, !showAvatar && styles.stageTextOnly]}>
-        {showAvatar ? <ExerciseMotionAvatar pose={guidance.pose} slow={slow} playing={playing} /> : null}
+      <View style={[styles.stage, styles.stageTextOnly]}>
         <Animated.View style={[styles.phaseTextWrap, { opacity, transform: [{ translateY: translate }] }]}>
           <Text style={styles.phaseCounter}>FASE {Math.min(phaseIndex + 1, 4)} DE 4</Text>
           <Text style={styles.phaseTitle}>{phase.title}</Text>
@@ -138,12 +138,12 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
 
 export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: Props) {
   const media = resolveExerciseMedia(title, videoUrl);
-  const hasPlayableMedia = media.kind === 'local-clip' || media.kind === 'remote-video' || media.kind === 'remote-image';
+  const hasPlayableMedia = (media.kind === 'local-clip' && media.finalQuality === 'realistic-human-demo') || media.kind === 'remote-video' || media.kind === 'remote-image';
   const realisticLocal = media.kind === 'local-clip' && media.finalQuality === 'realistic-human-demo';
   const localAnimation = media.kind === 'local-clip' && media.finalQuality === 'animated-fallback';
   const effectiveLicense = media.kind === 'local-clip' ? media.license || license : license;
   const effectiveAttribution = media.kind === 'local-clip' ? media.attribution || attribution : attribution;
-  const status = realisticLocal ? 'VÍDEO REAL OFFLINE' : localAnimation ? 'ANIMAÇÃO OFFLINE' : hasPlayableMedia ? 'DEMONSTRAÇÃO' : 'GUIA OFFLINE';
+  const status = realisticLocal ? 'VÍDEO COM PESSOA REAL' : hasPlayableMedia ? 'VÍDEO DE REFERÊNCIA' : 'GUIA PASSO A PASSO';
 
   return (
     <View style={styles.card}>
@@ -186,12 +186,12 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
         </View>
       ) : (
         <View style={styles.clipPendingCard}>
-          <Text style={styles.clipPendingTitle}>Demonstração em vídeo ainda pendente</Text>
-          <Text style={styles.clipPendingText}>O guia abaixo continua disponível offline com fases, respiração, dica para iniciante e erros comuns.</Text>
+          <Text style={styles.clipPendingTitle}>Guia de execução para este exercício</Text>
+          <Text style={styles.clipPendingText}>Ainda não há clipe humano licenciado para este movimento. Veja as quatro etapas, a respiração e os erros comuns; solicite orientação ao professor da academia antes de executar.</Text>
         </View>
       )}
 
-      <GuidedMotion title={title} showAvatar={!hasPlayableMedia} />
+      <GuidedMotion title={title} showAvatar={false} />
     </View>
   );
 }

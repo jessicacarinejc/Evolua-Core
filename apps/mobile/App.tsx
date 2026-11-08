@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { api, DailyCheckinInput, DailyCheckinResult } from './src/api/client';
+import { api, DailyCheckinInput, DailyCheckinResult, NutritionDay } from './src/api/client';
 import { sessionStore } from './src/auth/session';
 import { OnboardingData } from './src/onboarding/types';
 import { AssistantScreen } from './src/screens/AssistantScreen';
@@ -27,7 +28,8 @@ type Tab = 'Hoje' | 'Treino' | 'Nutrição' | 'Assistente' | 'Evolução' | 'Per
 type AppStage = 'boot' | 'auth' | 'onboarding' | 'checkin' | 'app';
 type Recovery = DailyCheckinResult['evaluation'] | null;
 
-const tabs: Tab[] = ['Hoje', 'Treino', 'Nutrição', 'Assistente', 'Evolução', 'Perfil'];
+const tabs: Tab[] = ['Hoje', 'Treino', 'Nutrição', 'Evolução', 'Assistente', 'Perfil'];
+const tabIcons: Record<Tab, string> = { 'Hoje':'⌂', 'Treino':'◇', 'Nutrição':'◉', 'Evolução':'▥', 'Assistente':'✧', 'Perfil':'●' };
 
 function statusText(recovery: Recovery) {
   if (!recovery) return 'check-in pendente';
@@ -43,26 +45,43 @@ function TodayScreen({
   onCheckin,
   onOpenWorkout,
   onOpenAssistant,
+  onOpenNutrition,
+  onOpenProgress,
+  token,
 }: {
   profile: OnboardingData | null;
   recovery: Recovery;
   onCheckin: () => void;
   onOpenWorkout: () => void;
   onOpenAssistant: () => void;
+  onOpenNutrition: () => void;
+  onOpenProgress: () => void;
+  token: string | null;
 }) {
   const firstName = profile?.displayName.trim().split(' ')[0];
+  const [nutrition, setNutrition] = useState<NutritionDay | null>(null);
+  useEffect(() => {
+    if (!token) return;
+    let active = true;
+    api.getNutritionToday(token).then(day => { if (active) setNutrition(day); }).catch(() => { if (active) setNutrition(null); });
+    return () => { active = false; };
+  }, [token]);
+  const cal = nutrition?.totals.caloriesKcal ?? 0;
+  const protein = nutrition?.totals.proteinG ?? 0;
+  const water = nutrition?.totals.waterMl ?? 0;
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.brandRow}>
-        <View style={styles.brandMark}><Text style={styles.brandMarkText}>EC</Text></View>
+        <View style={styles.brandMark}><Image source={require('./assets/brand/icon.png')} style={styles.brandLogo} resizeMode="contain" /></View>
         <View>
           <Text style={styles.brandName}>EVOLUA CORE</Text>
           <Text style={styles.brandTagline}>Treino · Nutrição · Saúde · Evolução</Text>
         </View>
       </View>
 
+      <Text style={styles.todayEyebrow}>SEU ESPAÇO DE EVOLUÇÃO</Text>
       <Text style={styles.hello}>{firstName ? `Olá, ${firstName} 👋` : 'Olá 👋'}</Text>
-      <Text style={styles.subtitle}>Seu plano diário considera rotina, recuperação, histórico e regras de segurança.</Text>
+      <Text style={styles.subtitle}>Cada refeição e cada treino contam. Acompanhe seu dia no seu ritmo.</Text>
 
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>PRÓXIMO TREINO</Text>
@@ -76,6 +95,32 @@ function TodayScreen({
           <Text style={styles.primaryButtonText}>{recovery ? 'Abrir treino de hoje' : 'Fazer check-in e preparar treino'}</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionTitle}>Seu dia em números</Text>
+        <TouchableOpacity onPress={onOpenNutrition}><Text style={styles.sectionLink}>Abrir diário  ›</Text></TouchableOpacity>
+      </View>
+      <View style={styles.dailyRow}>
+        <TouchableOpacity style={styles.dailyCard} onPress={onOpenNutrition}>
+          <Text style={styles.dailyIcon}>◉</Text><Text style={styles.dailyValue}>{Math.round(cal)}</Text>
+          <Text style={styles.dailyUnit}>kcal consumidas</Text>
+          {nutrition?.targets?.caloriesKcal ? <Text style={styles.dailyGoal}>de {nutrition.targets.caloriesKcal} kcal</Text> : <Text style={styles.dailyGoal}>Defina sua meta</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dailyCard} onPress={onOpenNutrition}>
+          <Text style={styles.dailyIcon}>◆</Text><Text style={styles.dailyValue}>{Math.round(protein)} g</Text>
+          <Text style={styles.dailyUnit}>proteína</Text>
+          {nutrition?.targets?.proteinG ? <Text style={styles.dailyGoal}>de {nutrition.targets.proteinG} g</Text> : <Text style={styles.dailyGoal}>Meta personalizável</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.dailyCard} onPress={onOpenNutrition}>
+          <Text style={styles.dailyIcon}>◌</Text><Text style={styles.dailyValue}>{(water/1000).toFixed(1).replace('.',',')} L</Text>
+          <Text style={styles.dailyUnit}>água</Text>
+          {nutrition?.targets?.waterMl ? <Text style={styles.dailyGoal}>de {(nutrition.targets.waterMl/1000).toFixed(1).replace('.',',')} L</Text> : <Text style={styles.dailyGoal}>Meta personalizável</Text>}
+        </TouchableOpacity>
+      </View>
+      <TouchableOpacity style={styles.progressShortcut} onPress={onOpenProgress}>
+        <View><Text style={styles.progressShortcutEyebrow}>EVOLUÇÃO CORPORAL</Text><Text style={styles.progressShortcutTitle}>Seu progresso merece ser visto</Text><Text style={styles.progressShortcutText}>Registre medidas e acompanhe força ao longo das semanas.</Text></View>
+        <Text style={styles.progressArrow}>›</Text>
+      </TouchableOpacity>
 
       {recovery?.notes?.length ? (
         <View style={styles.infoCard}>
@@ -149,6 +194,12 @@ export default function App() {
     setStage('auth');
   };
 
+  const handleSwitchUser = async () => {
+    if(token) { try { await api.logout(token); } catch { /* revogação pode falhar sem conexão */ } }
+    await clearSessionAndReturnToLogin();
+    setActiveTab('Hoje');
+  };
+
   const handleAuth = async (mode: 'login' | 'register', email: string, password: string) => {
     const response = await api.authenticate(mode, email, password);
     await sessionStore.save(response.token);
@@ -185,6 +236,9 @@ export default function App() {
           onCheckin={() => setStage('checkin')}
           onOpenWorkout={() => setActiveTab('Treino')}
           onOpenAssistant={() => setActiveTab('Assistente')}
+          onOpenNutrition={() => setActiveTab('Nutrição')}
+          onOpenProgress={() => setActiveTab('Evolução')}
+          token={token}
         />
       );
     }
@@ -192,7 +246,7 @@ export default function App() {
     if (activeTab === 'Nutrição') return <NutritionScreen profile={profile} token={token} />;
     if (activeTab === 'Assistente') return <AssistantScreen token={token} />;
     if (activeTab === 'Evolução') return <ProgressScreen token={token} />;
-    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} />;
+    return <ProfileScreen token={token} profile={profile} onProfileUpdated={setProfile} onSwitchUser={() => void handleSwitchUser()} />;
   }, [activeTab, profile, recovery, token]);
 
   if (stage === 'boot') {
@@ -230,7 +284,7 @@ export default function App() {
           const active = tab === activeTab;
           return (
             <TouchableOpacity key={tab} style={styles.tabItem} onPress={() => setActiveTab(tab)}>
-              <View style={[styles.tabDot, active && styles.tabDotActive]} />
+              <View style={[styles.tabPill, active && styles.tabPillActive]}><Text style={[styles.tabIcon, active && styles.tabIconActive]}>{tabIcons[tab]}</Text></View>
               <Text numberOfLines={1} style={[styles.tabText, active && styles.tabTextActive]}>{tab}</Text>
             </TouchableOpacity>
           );
@@ -256,6 +310,26 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.xl },
   brandMark: { width: 48, height: 48, borderRadius: 16, backgroundColor: theme.colors.navy, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   brandMarkText: { color: theme.colors.lime, fontWeight: '900', fontSize: 18 },
+  brandLogo: {width:40,height:40},
+  todayEyebrow: {color:theme.colors.navy,fontSize:10,fontWeight:'900',letterSpacing:1.6,marginBottom:7},
+  sectionHead:{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginTop:23,marginBottom:12},
+  sectionTitle:{fontSize:17,fontWeight:'900',color:theme.colors.navy},
+  sectionLink:{fontSize:11,fontWeight:'800',color:theme.colors.navy},
+  dailyRow:{flexDirection:'row',gap:8},
+  dailyCard:{flex:1,minWidth:0,backgroundColor:theme.colors.surface,borderRadius:18,padding:11,borderWidth:1,borderColor:theme.colors.border},
+  dailyIcon:{fontSize:22,color:theme.colors.navy,fontWeight:'900'},
+  dailyValue:{color:theme.colors.navy,fontWeight:'900',fontSize:18,marginTop:9},
+  dailyUnit:{color:theme.colors.text,fontSize:10,marginTop:3},
+  dailyGoal:{color:theme.colors.textMuted,fontSize:9,marginTop:7},
+  progressShortcut:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginTop:13,backgroundColor:'#EAF2DE',borderRadius:20,padding:16},
+  progressShortcutEyebrow:{fontSize:9,color:theme.colors.navy,fontWeight:'900',letterSpacing:1},
+  progressShortcutTitle:{fontSize:14,color:theme.colors.navy,fontWeight:'900',marginTop:5},
+  progressShortcutText:{fontSize:11,color:theme.colors.textMuted,marginTop:4,maxWidth:270},
+  progressArrow:{color:theme.colors.navy,fontSize:30,fontWeight:'900'},
+  tabPill:{width:39,height:30,alignItems:'center',justifyContent:'center',borderRadius:12,marginBottom:4},
+  tabPillActive:{backgroundColor:'#E8F2D5'},
+  tabIcon:{fontSize:22,color:theme.colors.textMuted},
+  tabIconActive:{color:theme.colors.navy},
   brandName: { color: theme.colors.navy, fontWeight: '900', fontSize: 17, letterSpacing: 1.2 },
   brandTagline: { color: theme.colors.textMuted, marginTop: 2, fontSize: 11 },
   hello: { color: theme.colors.text, fontSize: 28, fontWeight: '800' },
@@ -279,7 +353,7 @@ const styles = StyleSheet.create({
   noticeCard: { backgroundColor: '#EDF3E2', borderRadius: theme.radius.md, padding: 16, marginTop: 14 },
   noticeTitle: { color: theme.colors.navy, fontSize: 14, fontWeight: '900' },
   noticeText: { color: theme.colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: 5 },
-  tabBar: { flexDirection: 'row', backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 8, paddingBottom: 8 },
+  tabBar: { flexDirection: 'row', backgroundColor: theme.colors.white, borderTopWidth: 1, borderTopColor: theme.colors.border, paddingTop: 9, paddingBottom: 12, paddingHorizontal:5 },
   tabItem: { flex: 1, minWidth: 0, alignItems: 'center', paddingHorizontal: 2 },
   tabDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: '#CAD2DC', marginBottom: 4 },
   tabDotActive: { width: 16, backgroundColor: theme.colors.lime },

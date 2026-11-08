@@ -38,8 +38,16 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Alinhar módulos nativos à versão do Expo
+        run: |
+          npm --workspace @evolua/mobile exec -- expo install --fix --npm
+          npm --workspace @evolua/mobile exec -- expo install --check
+
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Testar catálogo nutricional e substituições
+        run: node --experimental-strip-types scripts/test-nutrition-catalog.mjs
 
       - name: Build da API
         run: npm run api:build
