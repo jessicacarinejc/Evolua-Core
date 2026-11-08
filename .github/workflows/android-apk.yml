@@ -66,6 +66,23 @@ jobs:
           npm --workspace @evolua/mobile exec -- expo install --fix --npm
           npm --workspace @evolua/mobile exec -- expo install --check
 
+      - name: Diagnosticar metadados nativos do Expo
+        run: |
+          cd apps/mobile
+          npx expo-modules-autolinking resolve --platform android > /tmp/evolua-modules.json
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const parsed = JSON.parse(fs.readFileSync('/tmp/evolua-modules.json','utf8'));
+          for (const [i, module] of (parsed.modules || []).entries()) {
+            console.log('MÓDULO', i, module.packageName, module.packageVersion);
+            for (const [j, project] of (module.projects || []).entries()) {
+              console.log('  PROJETO', j, project.name,
+                'publication:', JSON.stringify(project.publication ?? null),
+                'projectDir:', project.projectDir ?? null);
+            }
+          }
+          NODE
+
       - name: Preparar ferramentas de mídia
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
