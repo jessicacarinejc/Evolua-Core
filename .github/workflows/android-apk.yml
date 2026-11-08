@@ -61,6 +61,11 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Alinhar módulos nativos à versão do Expo
+        run: |
+          npm --workspace @evolua/mobile exec -- expo install --fix --npm
+          npm --workspace @evolua/mobile exec -- expo install --check
+
       - name: Preparar ferramentas de mídia
         run: |
           if ! command -v ffmpeg >/dev/null 2>&1; then
