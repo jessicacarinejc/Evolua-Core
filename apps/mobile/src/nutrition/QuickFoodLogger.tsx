@@ -10,7 +10,7 @@ const fmt=(n:number)=>Number.isFinite(n)?n.toFixed(1).replace('.',','):'—';
 export function QuickFoodLogger({token,restrictions,mealType,onSaved}:Props){
   const [mode,setMode]=useState<Mode>('alimento');
   const [query,setQuery]=useState('');
-  const [selected,setSelected]=useState<FoodItem|null>(foodCatalog[0]);
+  const [selected,setSelected]=useState<FoodItem|null>(foodCatalog[0] ?? null);
   const [grams,setGrams]=useState('160');
   const [showAlternatives,setShowAlternatives]=useState(false);
   const [saving,setSaving]=useState(false);
