@@ -139,7 +139,7 @@ export class OnboardingService {
     const withPrimary = unique.includes(input.primaryGoal)
       ? unique
       : [input.primaryGoal, ...unique];
-    return withPrimary.slice(0, 3);
+    return withPrimary;
   }
 
   private async replaceEquipment(client: PoolClient, userId: string, labels: string[]) {
