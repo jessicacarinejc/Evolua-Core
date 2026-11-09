@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { ExerciseMotionAvatar } from './ExerciseMotionAvatar';
 import { getExerciseGuidance } from '../workouts/exercise-guidance';
 import { resolveExerciseMedia } from '../workouts/exercise-media';
 import { theme } from '../theme';
@@ -33,7 +32,7 @@ function InlineVideo({ source }: { source: string | number }) {
   );
 }
 
-function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolean }) {
+function GuidedMotion({ title }: { title: string }) {
   const guidance = useMemo(() => getExerciseGuidance(title), [title]);
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -89,8 +88,7 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
         </View>
       </View>
 
-      <View style={[styles.stage, !showAvatar && styles.stageTextOnly]}>
-        {showAvatar ? <ExerciseMotionAvatar pose={guidance.pose} slow={slow} playing={playing} /> : null}
+      <View style={[styles.stage, styles.stageTextOnly]}>
         <Animated.View style={[styles.phaseTextWrap, { opacity, transform: [{ translateY: translate }] }]}>
           <Text style={styles.phaseCounter}>FASE {Math.min(phaseIndex + 1, 4)} DE 4</Text>
           <Text style={styles.phaseTitle}>{phase.title}</Text>
@@ -138,12 +136,15 @@ function GuidedMotion({ title, showAvatar }: { title: string; showAvatar: boolea
 
 export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: Props) {
   const media = resolveExerciseMedia(title, videoUrl);
-  const hasPlayableMedia = media.kind === 'local-clip' || media.kind === 'remote-video' || media.kind === 'remote-image';
   const realisticLocal = media.kind === 'local-clip' && media.finalQuality === 'realistic-human-demo';
+  // Fallback animado não é demonstração humana. Não mostrar boneco nem animação procedural.
+  const hasLicensedRemote = Boolean(license && attribution)
+    && (media.kind === 'remote-video' || media.kind === 'remote-image');
+  const hasPlayableMedia = realisticLocal || hasLicensedRemote;
   const localAnimation = media.kind === 'local-clip' && media.finalQuality === 'animated-fallback';
   const effectiveLicense = media.kind === 'local-clip' ? media.license || license : license;
   const effectiveAttribution = media.kind === 'local-clip' ? media.attribution || attribution : attribution;
-  const status = realisticLocal ? 'VÍDEO REAL OFFLINE' : localAnimation ? 'ANIMAÇÃO OFFLINE' : hasPlayableMedia ? 'DEMONSTRAÇÃO' : 'GUIA OFFLINE';
+  const status = realisticLocal ? 'VÍDEO REAL OFFLINE' : hasLicensedRemote ? 'VÍDEO VALIDADO' : 'VÍDEO HUMANO PENDENTE';
 
   return (
     <View style={styles.card}>
@@ -152,7 +153,7 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
           <Text style={styles.headerEyebrow}>COMO FAZER</Text>
           <Text style={styles.title}>{title}</Text>
         </View>
-        <View style={[styles.statusBadge, localAnimation && styles.statusBadgeAnimation, realisticLocal && styles.statusBadgeReal]}>
+        <View style={[styles.statusBadge, realisticLocal && styles.statusBadgeReal]}>
           <Text style={styles.statusBadgeText}>{status}</Text>
         </View>
       </View>
@@ -174,24 +175,19 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
             </View>
           ) : null}
 
-          {localAnimation ? (
-            <View style={styles.animationNotice}>
-              <Text style={styles.animationNoticeTitle}>Demonstração animada temporária</Text>
-              <Text style={styles.animationNoticeText}>Este exercício ainda usa o fallback contínuo próprio do Evolua Core enquanto o vídeo humano correspondente não é aprovado.</Text>
-            </View>
-          ) : null}
+          {null}
 
           {effectiveLicense ? <Text style={styles.meta}>Licença: {effectiveLicense}</Text> : null}
           {effectiveAttribution ? <Text style={styles.meta}>Crédito: {effectiveAttribution}</Text> : null}
         </View>
       ) : (
         <View style={styles.clipPendingCard}>
-          <Text style={styles.clipPendingTitle}>Demonstração em vídeo ainda pendente</Text>
-          <Text style={styles.clipPendingText}>O guia abaixo continua disponível offline com fases, respiração, dica para iniciante e erros comuns.</Text>
+          <Text style={styles.clipPendingTitle}>Vídeo com pessoa real em preparação</Text>
+          <Text style={styles.clipPendingText}>Não exibimos mais o boneco artificial. O guia técnico abaixo continua disponível offline, com execução, respiração e erros comuns. Vídeos humanos serão adicionados apenas com correspondência ao exercício e licença verificada.</Text>
         </View>
       )}
 
-      <GuidedMotion title={title} showAvatar={!hasPlayableMedia} />
+      <GuidedMotion title={title} />
     </View>
   );
 }
@@ -228,7 +224,7 @@ const styles = StyleSheet.create({
   speedButtonTextActive: { color: theme.colors.lime },
   playButton: { backgroundColor: theme.colors.lime, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999 },
   playButtonText: { color: theme.colors.navyDark, fontSize: 9, fontWeight: '900' },
-  stage: { flexDirection: 'row', alignItems: 'center', minHeight: 188, marginTop: 12, backgroundColor: '#071B34', borderRadius: 16, padding: 12, gap: 13 },
+  stage: { flexDirection: 'row', alignItems: 'center', minHeight: 132, marginTop: 12, backgroundColor: '#071B34', borderRadius: 16, padding: 12, gap: 13 },
   stageTextOnly: { minHeight: 132 },
   phaseTextWrap: { flex: 1 },
   phaseCounter: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
