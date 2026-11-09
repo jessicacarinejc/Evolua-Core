@@ -141,7 +141,7 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
   const hasLicensedRemote = Boolean(license && attribution)
     && (media.kind === 'remote-video' || media.kind === 'remote-image');
   const hasPlayableMedia = realisticLocal || hasLicensedRemote;
-  const localAnimation = media.kind === 'local-clip' && media.finalQuality === 'animated-fallback';
+  const [guideOpen, setGuideOpen] = useState(!hasPlayableMedia);
   const effectiveLicense = media.kind === 'local-clip' ? media.license || license : license;
   const effectiveAttribution = media.kind === 'local-clip' ? media.attribution || attribution : attribution;
   const status = realisticLocal ? 'VÍDEO REAL OFFLINE' : hasLicensedRemote ? 'VÍDEO VALIDADO' : 'VÍDEO HUMANO PENDENTE';
@@ -187,7 +187,14 @@ export function ExerciseVideoPlayer({ title, videoUrl, license, attribution }: P
         </View>
       )}
 
-      <GuidedMotion title={title} />
+      <TouchableOpacity
+        onPress={() => setGuideOpen((open) => !open)}
+        style={styles.guideToggle}
+        accessibilityRole="button"
+      >
+        <Text style={styles.guideToggleText}>{guideOpen ? '−  Ocultar orientações técnicas' : '＋  Ver técnica, respiração e erros comuns'}</Text>
+      </TouchableOpacity>
+      {guideOpen ? <GuidedMotion title={title} /> : null}
     </View>
   );
 }
@@ -204,7 +211,9 @@ const styles = StyleSheet.create({
   statusBadgeText: { color: theme.colors.white, fontSize: 7, fontWeight: '900', letterSpacing: 0.6 },
   referenceWrap: { marginBottom: 12 },
   mediaFrame: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#07182C', borderWidth: 1, borderColor: '#2C4B70' },
-  media: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#07182C' },
+  media: { width: '100%', aspectRatio: 4 / 5, backgroundColor: '#07182C' },
+  guideToggle: { borderRadius: 12, padding: 12, borderColor: '#425D7C', borderWidth: 1, alignItems: 'center', marginTop: 8, marginBottom: 8 },
+  guideToggleText: { color: theme.colors.white, fontWeight: '800', fontSize: 11 },
   realNotice: { backgroundColor: '#153F2B', borderRadius: 13, padding: 11, marginTop: 9 },
   realNoticeTitle: { color: '#B9F2C9', fontSize: 9, fontWeight: '900' },
   realNoticeText: { color: '#D9F3E1', fontSize: 9, lineHeight: 14, marginTop: 4 },
