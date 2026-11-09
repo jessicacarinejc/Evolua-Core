@@ -12,6 +12,8 @@ import {
 import { api, MealType, NutritionDay } from '../api/client';
 import { loadPersonalizedMealPlan, PersonalizedMealPlan } from '../api/meal-plan';
 import { MealPlanCard } from '../components/MealPlanCard';
+import { FoodSearchCard } from '../components/FoodSearchCard';
+import { FOOD_CATALOG, FoodItem } from '../nutrition/food-catalog';
 import { OnboardingData } from '../onboarding/types';
 import { theme } from '../theme';
 
@@ -79,6 +81,7 @@ export function NutritionScreen({ profile, token }: Props) {
   const [loading, setLoading] = useState(true);
   const [savingMeal, setSavingMeal] = useState(false);
   const [savingTargets, setSavingTargets] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
   const [mealType, setMealType] = useState<MealType>('lanche_tarde');
   const [foodName, setFoodName] = useState('');
   const [calories, setCalories] = useState('');
@@ -156,6 +159,33 @@ export function NutritionScreen({ profile, token }: Props) {
     }
   };
 
+  const registerCatalogFood = async (food: FoodItem, quantityG: number, selectedMealType: MealType) => {
+    if (!token) return;
+    if (!Number.isFinite(quantityG) || quantityG <= 0 || quantityG > 2000) {
+      Alert.alert('Quantidade inválida', 'Informe uma porção entre 1 e 2.000 g.');
+      return;
+    }
+    const factor = quantityG / 100;
+    const round = (value: number) => Number((value * factor).toFixed(2));
+    setSavingMeal(true);
+    try {
+      setDay(await api.addMealEntry(token, {
+        mealType: selectedMealType,
+        name: food.name,
+        quantityG,
+        caloriesKcal: round(food.kcal),
+        proteinG: round(food.protein),
+        carbsG: round(food.carbs),
+        fatG: round(food.fat),
+      }));
+      Alert.alert('Registrado', food.name + ' foi adicionado ao diário.');
+    } catch (cause) {
+      Alert.alert('Não foi possível registrar', cause instanceof Error ? cause.message : 'Tente novamente.');
+    } finally {
+      setSavingMeal(false);
+    }
+  };
+
   const saveTargets = async () => {
     if (!token) return;
     const input = {
@@ -191,9 +221,9 @@ export function NutritionScreen({ profile, token }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-      <Text style={styles.pageEyebrow}>NUTRIÇÃO</Text>
-      <Text style={styles.title}>Seu diário alimentar e hidratação</Text>
-      <Text style={styles.intro}>Registre o que consumiu e acompanhe suas próprias metas. O app não transforma metas de acompanhamento em prescrição clínica.</Text>
+      <Text style={styles.pageEyebrow}>EVOLUA CORE  /  NUTRI IA PRO</Text>
+      <Text style={styles.title}>Seu dia, suas escolhas</Text>
+      <Text style={styles.intro}>Alimentação prática, receitas regionais e acompanhamento das suas metas, com liberdade para variar.</Text>
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
@@ -213,8 +243,6 @@ export function NutritionScreen({ profile, token }: Props) {
         </View>
       </View>
 
-      {mealPlan ? <MealPlanCard plan={mealPlan} /> : null}
-
       <View style={styles.quickCard}>
         <Text style={styles.sectionEyebrow}>HIDRATAÇÃO</Text>
         <Text style={styles.sectionTitle}>Registrar água</Text>
@@ -227,8 +255,20 @@ export function NutritionScreen({ profile, token }: Props) {
         </View>
       </View>
 
+      {mealPlan ? <MealPlanCard plan={mealPlan} /> : null}
+
+      <FoodSearchCard restrictions={restrictions} saving={savingMeal} onAdd={registerCatalogFood} />
+
+      <TouchableOpacity
+        onPress={() => setManualOpen((open) => !open)}
+        style={styles.manualToggle}
+        accessibilityRole="button"
+      >
+        <Text style={styles.manualToggleText}>{manualOpen ? '−  Fechar cadastro por rótulo' : '＋  Alimento não encontrado? Cadastrar pelo rótulo'}</Text>
+      </TouchableOpacity>
+      {manualOpen ? (
       <View style={styles.formCard}>
-        <Text style={styles.sectionEyebrow}>DIÁRIO ALIMENTAR</Text>
+        <Text style={styles.sectionEyebrow}>CADASTRO COMPLEMENTAR</Text>
         <Text style={styles.sectionTitle}>Adicionar alimento</Text>
         <Text style={styles.formHelp}>Os dados nutricionais são opcionais nesta fase. Quando informados, entram no resumo do dia.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -251,17 +291,24 @@ export function NutritionScreen({ profile, token }: Props) {
           {savingMeal ? <ActivityIndicator color={theme.colors.navyDark} /> : <Text style={styles.primaryButtonText}>Registrar no diário</Text>}
         </TouchableOpacity>
       </View>
+      ) : null}
 
       <Text style={styles.sectionTitleOutside}>Registros de hoje</Text>
-      {day?.meals.length ? day.meals.map((meal) => (
+      {day?.meals.length ? day.meals.map((meal) => {
+        const catalogFood = FOOD_CATALOG.find((food) => food.name.toLocaleLowerCase('pt-BR') === meal.name.toLocaleLowerCase('pt-BR'));
+        return (
         <View key={meal.id} style={styles.mealLogCard}>
-          <View style={styles.mealLogTop}>
-            <Text style={styles.mealLogName}>{meal.name}</Text>
-            <Text style={styles.mealLogCalories}>{Math.round(meal.caloriesKcal)} kcal</Text>
+          <View style={styles.mealLogIcon}><Text style={styles.mealLogEmoji}>{catalogFood?.emoji ?? '🍽️'}</Text></View>
+          <View style={styles.mealLogDetails}>
+            <View style={styles.mealLogTop}>
+              <Text style={styles.mealLogName}>{meal.name}</Text>
+              <Text style={styles.mealLogCalories}>{Math.round(meal.caloriesKcal)} kcal</Text>
+            </View>
+            <Text style={styles.mealLogMeta}>{meal.mealType.replace('_', ' ')} · Proteína {Math.round(meal.proteinG)} g · Carboidratos {Math.round(meal.carbsG)} g · Gorduras {Math.round(meal.fatG)} g</Text>
           </View>
-          <Text style={styles.mealLogMeta}>{meal.mealType.replace('_', ' ')} · P {Math.round(meal.proteinG)} g · C {Math.round(meal.carbsG)} g · G {Math.round(meal.fatG)} g</Text>
         </View>
-      )) : <View style={styles.emptyCard}><Text style={styles.body}>Nenhum alimento registrado hoje.</Text></View>}
+        );
+      }) : <View style={styles.emptyCard}><Text style={styles.body}>Nenhum alimento registrado hoje.</Text></View>}
 
       <View style={styles.targetCard}>
         <Text style={styles.sectionEyebrow}>METAS DE ACOMPANHAMENTO</Text>
@@ -319,11 +366,11 @@ export function NutritionScreen({ profile, token }: Props) {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.background, gap: 12 },
   loadingText: { color: theme.colors.textMuted, fontWeight: '700' },
-  content: { padding: 24, paddingBottom: 44, backgroundColor: theme.colors.background },
-  pageEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-  title: { color: theme.colors.navy, fontSize: 29, fontWeight: '900', marginTop: 6 },
+  content: { padding: 18, paddingBottom: 44, backgroundColor: theme.colors.background },
+  pageEyebrow: { color: '#77A724', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+  title: { color: theme.colors.navyDark, fontSize: 32, fontWeight: '900', marginTop: 7, lineHeight: 37 },
   intro: { color: theme.colors.textMuted, fontSize: 14, lineHeight: 21, marginTop: 9, marginBottom: 16 },
-  summaryCard: { backgroundColor: theme.colors.navy, borderRadius: 21, padding: 18, marginBottom: 13 },
+  summaryCard: { backgroundColor: theme.colors.navyDark, borderRadius: 24, padding: 20, marginBottom: 13, elevation: 3 },
   summaryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   summaryEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.3 },
   summaryTitle: { color: theme.colors.white, fontSize: 19, fontWeight: '900', marginTop: 4 },
@@ -336,7 +383,9 @@ const styles = StyleSheet.create({
   progressBar: { height: 7, borderRadius: 8, backgroundColor: theme.colors.lime },
   macroRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 14 },
   macroText: { color: '#C8D4E3', fontSize: 9 },
-  quickCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 18, padding: 16, marginBottom: 12 },
+  quickCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 20, padding: 16, marginBottom: 13 },
+  manualToggle: { padding: 13, backgroundColor: '#EBF4DB', borderRadius: 14, marginBottom: 12, alignItems: 'center' },
+  manualToggleText: { color: theme.colors.navy, fontWeight: '900', fontSize: 12 },
   sectionEyebrow: { color: theme.colors.lime, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
   sectionTitle: { color: theme.colors.navy, fontSize: 18, fontWeight: '900', marginTop: 4 },
   quickRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
@@ -357,7 +406,10 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 1, borderColor: theme.colors.navy, borderRadius: 13, paddingVertical: 12, alignItems: 'center', marginTop: 10 },
   secondaryButtonText: { color: theme.colors.navy, fontWeight: '900' },
   sectionTitleOutside: { color: theme.colors.text, fontSize: 19, fontWeight: '900', marginTop: 18, marginBottom: 9 },
-  mealLogCard: { backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 14, padding: 13, marginBottom: 7 },
+  mealLogCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.colors.white, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 16, padding: 12, marginBottom: 8 },
+  mealLogIcon: { width: 54, height: 54, borderRadius: 13, backgroundColor: '#EAF6D0', alignItems: 'center', justifyContent: 'center' },
+  mealLogEmoji: { fontSize: 26 },
+  mealLogDetails: { flex: 1 },
   mealLogTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   mealLogName: { color: theme.colors.navy, fontSize: 12, fontWeight: '900', flex: 1 },
   mealLogCalories: { color: theme.colors.text, fontSize: 10, fontWeight: '900' },
