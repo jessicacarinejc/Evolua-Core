@@ -1,3 +1,5 @@
+import { originalCuscuzFrangoPhoto } from './meal-photos';
+
 /**
  * Valores médios estimados por 100 g de alimento preparado, não constituem prescrição.
  * Referências nutricionais a reconciliar com TBCA/USP e rótulos por marca.
@@ -55,7 +57,7 @@ export const FOOD_CATALOG: FoodItem[] = [
   { id: 'banana', name: 'Banana-prata crua', category: 'Frutas', emoji: '🍌', kcal: 98, protein: 1.3, carbs: 26.0, fat: 0.1, search: 'banana prata', tags: ['banana'] },
   { id: 'iogurte', name: 'Iogurte natural integral', category: 'Laticínios', emoji: '🥛', kcal: 63, protein: 3.5, carbs: 4.7, fat: 3.3, search: 'iogurte leite natural', tags: ['leite', 'lactose', 'laticinios'], image: foodPhoto.cafe },
   { id: "cuscuz-ovos", name: "Cuscuz com ovos mexidos", category: "Pratos e receitas", emoji: "🍲", kcal: 169, protein: 8.9, carbs: 20.6, fat: 5.7, search: "cuscuz ovo ovos mexido", tags: ["milho","ovos"], servingG: 150, servingLabel: "porção pequena (150 g)", source: 'estimativa', note: "Combinação média: depende das quantidades de cuscuz, ovos e gordura." },
-  { id: "cuscuz-frango", name: "Cuscuz com frango desfiado", category: "Pratos e receitas", emoji: "🍲", kcal: 163, protein: 13.7, carbs: 20.4, fat: 3.3, search: "cuscuz frango desfiado", tags: ["milho","carne"], servingG: 150, servingLabel: "porção pequena (150 g)", source: 'estimativa', note: "Combinação média: frango e recheio podem variar." },
+  { id: "cuscuz-frango", name: "Cuscuz com frango desfiado", category: "Pratos e receitas", emoji: "🍲", kcal: 163, protein: 13.7, carbs: 20.4, fat: 3.3, search: "cuscuz frango desfiado", tags: ["milho","carne"], servingG: 150, servingLabel: "porção pequena (150 g)", source: 'estimativa', image: originalCuscuzFrangoPhoto, note: "Combinação média: frango e recheio podem variar." },
   { id: "cuscuz-manteiga", name: "Cuscuz com manteiga", category: "Pratos e receitas", emoji: "🌽", kcal: 185, protein: 2.2, carbs: 23.4, fat: 9.4, search: "cuscuz manteiga", tags: ["milho","leite","lactose","laticinios"], servingG: 100, servingLabel: "porção (100 g)", source: 'estimativa', note: "Para maior precisão registre cuscuz e manteiga separadamente." },
   { id: "tapioca", name: "Tapioca pronta sem recheio", category: "Pães e cereais", emoji: "🥞", kcal: 230, protein: 0.2, carbs: 56, fat: 0.1, search: "tapioca beiju goma", tags: ["mandioca"], servingG: 60, servingLabel: "1 disco pequeno (60 g)", source: 'estimativa' },
   { id: "crepioca", name: "Crepioca simples", category: "Pratos e receitas", emoji: "🥞", kcal: 190, protein: 9, carbs: 23, fat: 7, search: "crepioca tapioca ovos", tags: ["mandioca","ovos"], servingG: 120, servingLabel: "1 unidade (120 g)", source: 'estimativa', note: "Valor depende da proporção de tapioca e ovos." },
