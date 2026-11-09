@@ -39,12 +39,32 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
   const [quantity, setQuantity] = useState('160');
   const [mealType, setMealType] = useState<MealType>('cafe');
   const [expanded, setExpanded] = useState(true);
-  const visible = useMemo(() => {
-    const search = query.trim().toLocaleLowerCase('pt-BR');
-    return FOOD_CATALOG.filter((food) =>
-      !search || (food.name + ' ' + food.search).toLocaleLowerCase('pt-BR').includes(search),
-    ).slice(0, 6);
-  }, [query]);
+  const [category, setCategory] = useState('Todos');
+  const [visibleLimit, setVisibleLimit] = useState(10);
+
+  const normalize = (s: string) => s.normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .trim();
+
+  const categories = useMemo(() => ['Todos', 'Ovos', 'Pratos e receitas',
+    'Carnes e proteínas', 'Raízes e cereais', 'Frutas', 'Laticínios', 'Legumes',
+    'Leguminosas', 'Pães e cereais', 'Bebidas', 'Outros'], []);
+
+  const results = useMemo(() => {
+    const words = normalize(query).split(/\s+/).filter(Boolean);
+    return FOOD_CATALOG.filter((food) => {
+      const categoryMatches = category === 'Todos'
+        || (category === 'Outros' ? !categories.slice(1, -1).includes(food.category) : food.category === category);
+      const haystack = normalize(food.name + ' ' + food.search + ' ' + food.category);
+      return categoryMatches && words.every((word) => haystack.includes(word));
+    }).sort((a, b) => {
+      const aExact = normalize(a.name).startsWith(normalize(query)) ? 0 : 1;
+      const bExact = normalize(b.name).startsWith(normalize(query)) ? 0 : 1;
+      return aExact - bExact;
+    });
+  }, [query, category, categories]);
+  const visible = results.slice(0, visibleLimit);
 
   const food: FoodItem = FOOD_CATALOG.find((item) => item.id === selectedId) ?? FOOD_CATALOG[0]!;
   const grams = Number(quantity.replace(',', '.'));
@@ -70,20 +90,31 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
             <Text style={styles.searchIcon}>⌕</Text>
             <TextInput
               value={query}
-              onChangeText={setQuery}
-              placeholder="Buscar: cuscuz, inhame, frango..."
+              onChangeText={(value) => { setQuery(value); setVisibleLimit(10); }}
+              placeholder="Buscar: ovos fritos, cuscuz, frango..."
               placeholderTextColor={theme.colors.textMuted}
               style={styles.searchInput}
               autoCorrect={false}
             />
           </View>
 
-          <Text style={styles.listTitle}>{query ? 'Resultados encontrados' : 'Seus alimentos regionais'}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categories}>
+            {categories.map((item) => (
+              <TouchableOpacity key={item}
+                onPress={() => { setCategory(item); setVisibleLimit(10); }}
+                style={[styles.categoryChip, category === item && styles.categoryChipActive]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.categoryText, category === item && styles.categoryTextActive]}>{item}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <Text style={styles.listTitle}>{query ? 'Resultados encontrados' : 'Explore o catálogo'} · {results.length} opções</Text>
           {visible.length ? visible.map((item) => {
             const chosen = food.id === item.id;
             const restricted = isRestricted(item, restrictions);
             return (
-              <TouchableOpacity key={item.id} style={[styles.foodRow, chosen && styles.foodRowSelected]} onPress={() => setSelectedId(item.id)} accessibilityRole="radio" accessibilityState={{ checked: chosen }}>
+              <TouchableOpacity key={item.id} style={[styles.foodRow, chosen && styles.foodRowSelected]} onPress={() => { setSelectedId(item.id); setQuantity(String(item.servingG ?? 100)); }} accessibilityRole="radio" accessibilityState={{ checked: chosen }}>
                 <FoodThumbnail food={item} />
                 <View style={styles.foodDetails}>
                   <Text style={styles.foodName} numberOfLines={2}>{item.name}</Text>
@@ -93,6 +124,11 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
               </TouchableOpacity>
             );
           }) : <Text style={styles.empty}>Não encontramos este item no catálogo. Use o cadastro pelo rótulo abaixo.</Text>}
+          {results.length > visible.length ? (
+            <TouchableOpacity onPress={() => setVisibleLimit((n) => n + 12)} style={styles.moreButton}>
+              <Text style={styles.moreText}>Mostrar mais alimentos ({results.length - visible.length} restantes)</Text>
+            </TouchableOpacity>
+          ) : null}
 
           <View style={styles.selectedCard}>
             <View style={styles.selectedHeader}>
@@ -104,6 +140,16 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
             </View>
 
             <Text style={styles.portionLabel}>Quantidade consumida (g)</Text>
+            {food.servingG ? (
+              <View style={styles.quickPortionRow}>
+                <TouchableOpacity onPress={() => setQuantity(String(food.servingG))} style={styles.quickPortion}>
+                  <Text style={styles.quickPortionText}>1 × {food.servingLabel ?? food.servingG + ' g'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setQuantity(String(food.servingG! * 2))} style={styles.quickPortion}>
+                  <Text style={styles.quickPortionText}>2 porções</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <View style={styles.portionRow}>
               <TouchableOpacity onPress={() => setQuantity(String(Math.max(10, (validGrams ? grams : 100) - 10)))} style={styles.portionControl} accessibilityLabel="Reduzir dez gramas">
                 <Text style={styles.portionControlText}>−</Text>
@@ -126,7 +172,8 @@ export function FoodSearchCard({ restrictions, saving, onAdd }: Props) {
                 </View>
               ))}
             </View>
-            <Text style={styles.sourceNote}>Estimativas por 100 g; alimentos preparados e marcas podem variar. Fotos ilustrativas.</Text>
+            <Text style={styles.sourceNote}>Valores por 100 g. Fonte: {food.source === 'TBCA' ? 'TBCA/USP' : food.source === 'TACO' ? 'TACO/UNICAMP' : 'estimativa inicial'}; pesos e preparos podem variar.</Text>
+            {food.note ? <Text style={styles.sourceNote}>{food.note}</Text> : null}
             {blocked ? <Text style={styles.blocked}>Este alimento pode conflitar com uma restrição cadastrada e não pode ser registrado por este atalho.</Text> : null}
           </View>
 
@@ -165,7 +212,17 @@ const styles = StyleSheet.create({
   searchField: { backgroundColor: '#F5F7FA', borderRadius: 15, flexDirection: 'row', alignItems: 'center', marginTop: 16, paddingHorizontal: 12, borderWidth: 1, borderColor: theme.colors.border },
   searchIcon: { color: theme.colors.navy, fontSize: 27, marginRight: 6 },
   searchInput: { flex: 1, paddingVertical: 12, color: theme.colors.text, fontSize: 13 },
-  listTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14, marginTop: 18, marginBottom: 8 },
+  listTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14, marginTop: 13, marginBottom: 8 },
+  categories: { gap: 7, paddingTop: 13, paddingBottom: 3 },
+  categoryChip: { borderColor: theme.colors.border, borderWidth: 1, backgroundColor: '#F6F8FA', borderRadius: 999, paddingHorizontal: 11, paddingVertical: 8 },
+  categoryChipActive: { backgroundColor: theme.colors.navyDark, borderColor: theme.colors.navyDark },
+  categoryText: { fontSize: 11, color: theme.colors.textMuted, fontWeight: '700' },
+  categoryTextActive: { color: theme.colors.white },
+  moreButton: { padding: 12, alignItems: 'center', backgroundColor: '#EDF5E5', borderRadius: 12, marginTop: 11 },
+  moreText: { fontSize: 11, fontWeight: '800', color: theme.colors.navy },
+  quickPortionRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  quickPortion: { borderRadius: 12, borderWidth: 1, borderColor: '#AECF7C', padding: 8 },
+  quickPortionText: { fontSize: 10, color: '#E3F4C2', fontWeight: '800' },
   foodRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: theme.colors.border, padding: 8, borderRadius: 12 },
   foodRowSelected: { backgroundColor: '#EEF7DE', borderBottomColor: '#CBEA8D' },
   thumbnail: { overflow: 'hidden', borderRadius: 12, backgroundColor: '#EAF3D9', alignItems: 'center', justifyContent: 'center' },
