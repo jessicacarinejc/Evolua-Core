@@ -37,7 +37,7 @@ export const FOOD_CATALOG: FoodItem[] = [
   { id: 'arroz-integral', name: 'Arroz integral cozido', category: 'Raízes e cereais', emoji: '🍚', kcal: 124, protein: 2.6, carbs: 25.8, fat: 1.0, search: 'arroz integral', tags: [] },
   { id: 'feijao', name: 'Feijão carioca cozido', category: 'Leguminosas', emoji: '🫘', kcal: 76, protein: 4.8, carbs: 13.6, fat: 0.5, search: 'feijao carioquinha', tags: [] },
   { id: 'frango', name: 'Peito de frango grelhado', category: 'Proteínas', emoji: '🍗', kcal: 165, protein: 31, carbs: 0, fat: 3.6, search: 'frango peito grelhado', tags: ['carne'], image: foodPhoto.prato },
-  { id: 'ovo', name: 'Ovo de galinha cozido', category: 'Proteínas', emoji: '🥚', kcal: 146, protein: 13.3, carbs: 0.6, fat: 9.5, search: 'ovo ovos cozido', tags: ['ovos'] },
+  { id: 'ovo', name: 'Ovo de galinha cozido', category: 'Ovos', emoji: '🥚', kcal: 146, protein: 13.3, carbs: 0.6, fat: 9.5, search: 'ovo ovos cozido', tags: ['ovos'] },
   { id: "ovo-frito", name: "Ovo inteiro frito com óleo", category: "Ovos", emoji: "🍳", kcal: 235, protein: 15.6, carbs: 1.19, fat: 18.6, search: "ovo ovos frito fritos frigideira", tags: ["ovos"], servingG: 50, servingLabel: "1 ovo médio (50 g)", source: "TBCA", note: "TBCA BRC0015J: ovo frito em óleo de soja. A quantidade de óleo absorvido varia; não some novamente o mesmo óleo usado nesta opção." },
   { id: "ovo-frito-sem-oleo", name: "Ovo na frigideira sem óleo", category: "Ovos", emoji: "🍳", kcal: 143, protein: 13, carbs: 1.6, fat: 8.9, search: "ovo ovos frito sem oleo antiaderente", tags: ["ovos"], servingG: 50, servingLabel: "1 ovo médio (50 g)", source: "estimativa", note: "Valores de ovo inteiro sem adição de óleo ou manteiga." },
   { id: "ovo-mexido", name: "Ovos mexidos sem óleo", category: "Ovos", emoji: "🍳", kcal: 143, protein: 13, carbs: 1.6, fat: 8.9, search: "ovo ovos mexidos mexido", tags: ["ovos"], servingG: 50, servingLabel: "1 ovo (50 g)", source: "estimativa", note: "Sem óleo ou manteiga. Se adicionou gordura, prefira registrar ingredientes separadamente." },
@@ -128,14 +128,37 @@ export const FOOD_CATALOG: FoodItem[] = [
   { id: "granola", name: "Granola tradicional", category: "Pães e cereais", emoji: "🥣", kcal: 404, protein: 10, carbs: 64, fat: 12, search: "granola cereais", tags: ["aveia","gluten","oleaginosas"], servingG: 30, servingLabel: "3 colheres (30 g)", source: 'estimativa', note: "Confira marca e alérgenos." },
 ];
 
+/**
+ * Barreiras conservadoras de pesquisa para restrições comuns. Compatibilidades
+ * específicas de receitas e alérgenos ocultos exigem validação de rótulo.
+ */
 export function isRestricted(food: FoodItem, restrictions: string[]) {
-  const normalize = (value: string) => value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalize = (value: string) => value.toLocaleLowerCase('pt-BR')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  const tags = food.tags.map(normalize);
+  const name = normalize(food.name);
+  const relevant = (value: string) => {
+    const label = normalize(value);
+    if (/(ovo|clara|gema)/.test(label)) return tags.includes('ovos');
+    if (/(leite|lactose|laticinio|caseina)/.test(label)) return tags.some((tag) => ['leite', 'lactose', 'laticinios'].includes(tag));
+    if (/(gluten|trigo)/.test(label)) return tags.some((tag) => ['gluten', 'trigo'].includes(tag));
+    if (/(amendoim)/.test(label)) return tags.includes('amendoim');
+    if (/(castanha|nozes|oleaginosa)/.test(label)) return tags.some((tag) => ['castanhas', 'oleaginosas'].includes(tag));
+    if (/(soja)/.test(label)) return tags.includes('soja');
+    if (/(peixe)/.test(label)) return tags.includes('peixe');
+    if (/(frutos do mar|camarao|crustaceo)/.test(label)) return tags.some((tag) => ['frutos do mar', 'crustaceos'].includes(tag));
+    if (/(banana)/.test(label)) return tags.includes('banana');
+    if (/(milho)/.test(label)) return tags.includes('milho');
+    if (/(mandioca)/.test(label)) return tags.includes('mandioca');
+    return tags.some((tag) => tag === label || tag.includes(label)) || name.includes(label);
+  };
   return restrictions.some((raw) => {
     const restriction = normalize(raw);
     if (!restriction || restriction === 'nenhuma informada') return false;
-    if (restriction === 'vegetariano' || restriction === 'vegano') {
-      return food.tags.includes('carne') || (restriction === 'vegano' && food.tags.some((tag) => ['ovos', 'leite', 'lactose', 'laticinios'].includes(tag)));
+    if (/(vegano)/.test(restriction)) {
+      return tags.some((tag) => ['carne', 'ovos', 'leite', 'lactose', 'laticinios', 'peixe', 'frutos do mar'].includes(tag));
     }
-    return food.tags.some((tag) => normalize(tag) === restriction) || normalize(food.name).includes(restriction);
+    if (/(vegetariano)/.test(restriction)) return tags.includes('carne') || tags.includes('peixe');
+    return relevant(restriction);
   });
 }
