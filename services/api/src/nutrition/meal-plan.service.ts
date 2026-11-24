@@ -19,6 +19,7 @@ const normalize = (value: string) => value
 
 const catalog: Record<string, Candidate[]> = {
   cafe: [
+    { title: 'Cuscuz com frango desfiado', ingredients: ['cuscuz de milho', 'frango desfiado'], tags: ['milho', 'frango', 'carne'] },
     { title: 'Cuscuz de milho, ovos e queijo branco', ingredients: ['cuscuz de milho', 'ovos', 'queijo branco'], tags: ['milho', 'ovo', 'leite', 'lactose'] },
     { title: 'Ovos, fruta e aveia', ingredients: ['ovos', 'fruta', 'aveia'], tags: ['ovo', 'aveia', 'gluten'] },
     { title: 'Tapioca com frango e fruta', ingredients: ['tapioca', 'frango', 'fruta'], tags: ['mandioca', 'frango'] },

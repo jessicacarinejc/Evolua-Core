@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import type { WorkoutExercise, WorkoutSessionExercise } from '../api/client';
 import { calculateMuscleImpact } from '../workouts/workout-impact';
 import { theme } from '../theme';
@@ -39,11 +39,6 @@ function ExerciseImpactRow({ exercise }: { exercise: ExerciseLike }) {
 
 export function WorkoutImpactCard({ exercises, compact = false }: Props) {
   const impact = calculateMuscleImpact(exercises);
-  const upper = impact.filter((item) => item.area === 'upper');
-  const core = impact.filter((item) => item.area === 'core');
-  const lower = impact.filter((item) => item.area === 'lower');
-
-  const regionLevel = (items: typeof impact) => Math.max(0, ...items.map((item) => item.percent));
 
   return (
     <View style={[styles.card, compact && styles.cardCompact]}>
@@ -58,15 +53,14 @@ export function WorkoutImpactCard({ exercises, compact = false }: Props) {
 
       <View style={styles.bodyRow}>
         <View style={styles.bodyMap}>
-          <View style={[styles.head, { backgroundColor: '#DCE5EF' }]} />
-          <View style={[styles.shoulders, { backgroundColor: tone(regionLevel(upper)) }]} />
-          <View style={[styles.torso, { backgroundColor: tone(regionLevel(core)) }]} />
-          <View style={styles.hips} />
-          <View style={styles.legsRow}>
-            <View style={[styles.leg, { backgroundColor: tone(regionLevel(lower)) }]} />
-            <View style={[styles.leg, { backgroundColor: tone(regionLevel(lower)) }]} />
-          </View>
-          <View style={styles.legendMini}><Text style={styles.legendMiniText}>Visão resumida</Text></View>
+          <Image
+            source={{ uri: 'https://commons.wikimedia.org/wiki/Special:Redirect/file/Muscles_front_and_back-es.png' }}
+            style={styles.anatomyImage}
+            resizeMode="contain"
+            accessibilityLabel="Referência anatômica humana: músculos vistos de frente e de costas"
+          />
+          <Text style={styles.legendMiniText}>Anatomia: frente e costas</Text>
+          <Text style={styles.atlasNote}>Áreas listadas ao lado; a imagem é uma referência anatômica, não um mapa de ativação individual.</Text>
         </View>
 
         <View style={styles.list}>
@@ -86,6 +80,7 @@ export function WorkoutImpactCard({ exercises, compact = false }: Props) {
 
       {!compact ? (
         <>
+          <Text style={styles.attribution}>Imagem anatômica: OpenStax, Tomáš Kebert e umimeto.org · CC BY 4.0 · Wikimedia Commons. Exige internet.</Text>
           <View style={styles.legend}>
             <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#9DCC46' }]} /><Text style={styles.legendText}>principal</Text></View>
             <View style={styles.legendItem}><View style={[styles.dot, { backgroundColor: '#5F8FC7' }]} /><Text style={styles.legendText}>moderado</Text></View>
@@ -115,7 +110,10 @@ const styles = StyleSheet.create({
   badge: { backgroundColor: '#203F66', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 6 },
   badgeText: { color: theme.colors.lime, fontSize: 8, fontWeight: '900' },
   bodyRow: { flexDirection: 'row', gap: 15, marginTop: 15, alignItems: 'center' },
-  bodyMap: { width: 92, alignItems: 'center', paddingVertical: 8 },
+  bodyMap: { width: 142, alignItems: 'center', paddingVertical: 8 },
+  anatomyImage: { width: 138, height: 156, backgroundColor: '#F1F4F8', borderRadius: 13 },
+  atlasNote: { color: '#B5C9E1', fontSize: 7, lineHeight: 11, textAlign: 'center', marginTop: 7 },
+  attribution: { color: '#A5BAD1', fontSize: 7, lineHeight: 11, marginTop: 9 },
   head: { width: 24, height: 24, borderRadius: 12, marginBottom: 4 },
   shoulders: { width: 70, height: 20, borderRadius: 12 },
   torso: { width: 48, height: 66, borderBottomLeftRadius: 18, borderBottomRightRadius: 18, borderTopLeftRadius: 8, borderTopRightRadius: 8, marginTop: -2 },

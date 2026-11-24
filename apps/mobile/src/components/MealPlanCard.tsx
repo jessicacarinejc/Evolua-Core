@@ -2,25 +2,33 @@ import { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PersonalizedMealPlan } from '../api/meal-plan';
 import { theme } from '../theme';
+import { originalCuscuzFrangoPhoto } from '../nutrition/meal-photos';
 
 type Props = { plan: PersonalizedMealPlan };
 
-const photos: Record<string, string> = {
-  cafe: 'https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=650&q=78',
-  almoco: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=650&q=78',
-  lanche: 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=650&q=78',
-  jantar: 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=650&q=78',
-};
-
 const icons: Record<string, string> = { cafe: '☀️', almoco: '🍽️', lanche: '🥣', jantar: '🌙' };
 
-function MealCover({ kind }: { kind: string }) {
-  const [failed, setFailed] = useState(false);
+function MealCover({ kind, title, ingredients }: { kind: string; title: string; ingredients: string[] }) {
+  const normalized = (title + ' ' + ingredients.join(' ')).toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Fotos sempre vinculadas à receita, nunca ao horário.
+  const exactPhoto = normalized.includes('cuscuz') && normalized.includes('frango')
+    ? originalCuscuzFrangoPhoto : null;
   return (
     <View style={styles.photo}>
-      {photos[kind] && !failed
-        ? <Image source={{ uri: photos[kind] }} onError={() => setFailed(true)} style={styles.photoImage} resizeMode="cover" accessibilityLabel="Foto ilustrativa de refeição" />
-        : <Text style={styles.photoIcon}>{icons[kind] ?? '🍽️'}</Text>}
+      {exactPhoto ? (
+        <Image
+          source={{ uri: exactPhoto }}
+          style={styles.photoImage}
+          resizeMode="cover"
+          accessibilityLabel={'Imagem ilustrativa correspondente a ' + title}
+        />
+      ) : (
+        <View style={styles.foodFallback}>
+          <Text style={styles.photoIcon}>{icons[kind] ?? '🍽️'}</Text>
+          <Text style={styles.foodFallbackLabel}>FOTO DA RECEITA EM PREPARAÇÃO</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -44,7 +52,7 @@ export function MealPlanCard({ plan }: Props) {
         const active = options[index];
         return (
           <View key={meal.key} style={styles.mealCard}>
-            <MealCover kind={meal.key} />
+            <MealCover kind={meal.key} title={active?.title ?? ''} ingredients={active?.ingredients ?? []} />
             <View style={styles.mealContent}>
               <Text style={styles.mealLabel}>{meal.label.toLocaleUpperCase('pt-BR')}</Text>
               {active ? (
@@ -85,7 +93,7 @@ export function MealPlanCard({ plan }: Props) {
           <Text style={styles.warningText}>{plan.safety.note}</Text>
         </View>
       ) : null}
-      <Text style={styles.photoNote}>Fotos ilustrativas de alimentos. As combinações exatas e porções variam conforme o preparo.</Text>
+      <Text style={styles.photoNote}>As fotos são originais, por receita. Quando não existir imagem fiel, mostramos um espaço reservado, sem usar fotos de pratos diferentes.</Text>
     </View>
   );
 }
@@ -102,6 +110,8 @@ const styles = StyleSheet.create({
   mealCard: { flexDirection: 'row', minHeight: 142, backgroundColor: theme.colors.white, borderRadius: 22, borderColor: theme.colors.border, borderWidth: 1, marginBottom: 11, overflow: 'hidden' },
   photo: { width: '39%', minHeight: 142, backgroundColor: '#E7F3D6', alignItems: 'center', justifyContent: 'center' },
   photoImage: { height: '100%', width: '100%', position: 'absolute' },
+  foodFallback: { justifyContent: 'center', alignItems: 'center', padding: 8 },
+  foodFallbackLabel: { color: theme.colors.navy, fontSize: 8, fontWeight: '900', marginTop: 8, textAlign: 'center' },
   photoIcon: { fontSize: 48 },
   mealContent: { flex: 1, padding: 12, justifyContent: 'center' },
   mealLabel: { color: '#517D12', backgroundColor: '#E9F8C1', borderRadius: 8, overflow: 'hidden', paddingVertical: 4, paddingHorizontal: 8, fontSize: 10, alignSelf: 'flex-start', fontWeight: '900' },

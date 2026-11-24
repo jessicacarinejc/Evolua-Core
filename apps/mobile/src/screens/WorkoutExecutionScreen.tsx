@@ -521,6 +521,13 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           <Text style={styles.exerciseName}>{currentExercise.name}</Text>
           <Text style={styles.exerciseMuscle}>{currentExercise.primaryMuscle}</Text>
 
+          <ExerciseVideoPlayer
+            title={currentExercise.name}
+            videoUrl={currentExercise.videoUrl ?? guidanceUrl(currentExercise.name)}
+            license={currentExercise.videoLicense}
+            attribution={currentExercise.videoAttribution}
+          />
+
           {nextExercise ? (
             <View style={styles.nextCard}>
               <Text style={styles.nextEyebrow}>DEPOIS DESTE</Text>
@@ -550,12 +557,6 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
 
           {currentExercise.instructions ? <Text style={styles.instructions}>{currentExercise.instructions}</Text> : null}
 
-          <ExerciseVideoPlayer
-            title={currentExercise.name}
-            videoUrl={currentExercise.videoUrl ?? guidanceUrl(currentExercise.name)}
-            license={currentExercise.videoLicense}
-            attribution={currentExercise.videoAttribution}
-          />
 
           <View style={styles.safetyActions}>
             <TouchableOpacity onPress={() => setShowSafetyPanel((value) => !value)} style={styles.safetyActionButton}>

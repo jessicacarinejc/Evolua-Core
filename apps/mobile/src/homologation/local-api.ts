@@ -209,6 +209,7 @@ function personalizedMealPlan(state: LocalHomologationState) {
   const hasBlocked = (ingredients: string[]) => ingredients.some((ingredient) => blocks.some((block) => lower(ingredient).includes(block)));
   const candidates = {
     cafe: [
+      { title: 'Cuscuz com frango desfiado', ingredients: ['cuscuz de milho', 'frango desfiado'], tags: ['prático', 'carne', 'frango'] },
       { title: 'Cuscuz de milho com ovos', ingredients: ['cuscuz de milho', 'ovos'], tags: ['prático', 'proteína'] },
       { title: 'Aveia com banana e sementes', ingredients: ['aveia', 'banana', 'chia'], tags: ['carboidrato complexo', 'fibras'] },
       { title: 'Ovos com fruta', ingredients: ['ovos', 'fruta'], tags: ['proteína', 'prático'] },

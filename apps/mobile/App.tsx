@@ -42,12 +42,16 @@ function TodayScreen({
   recovery,
   onCheckin,
   onOpenWorkout,
+  onOpenNutrition,
+  onOpenProgress,
   onOpenAssistant,
 }: {
   profile: OnboardingData | null;
   recovery: Recovery;
   onCheckin: () => void;
   onOpenWorkout: () => void;
+  onOpenNutrition: () => void;
+  onOpenProgress: () => void;
   onOpenAssistant: () => void;
 }) {
   const firstName = profile?.displayName.trim().split(' ')[0];
@@ -62,7 +66,25 @@ function TodayScreen({
       </View>
 
       <Text style={styles.hello}>{firstName ? `Olá, ${firstName} 👋` : 'Olá 👋'}</Text>
-      <Text style={styles.subtitle}>Seu plano diário considera rotina, recuperação, histórico e regras de segurança.</Text>
+      <Text style={styles.subtitle}>Seu plano de hoje, em um só lugar.</Text>
+      <Text style={styles.planTitle}>Plano pessoal</Text>
+      <View style={styles.quickPlan}>
+        {([
+          { title: 'Adicionar alimentos', body: 'Registre refeições e macronutrientes', icon: '🥗', onPress: onOpenNutrition },
+          { title: 'Fazer meu treino', body: 'Treino guiado, tempo e cargas', icon: '🏋️', onPress: recovery ? onOpenWorkout : onCheckin },
+          { title: 'Acompanhar água', body: 'Hidratação e meta do dia', icon: '💧', onPress: onOpenNutrition },
+          { title: 'Ver evolução', body: 'Medidas, peso e desempenho', icon: '📈', onPress: onOpenProgress },
+        ] as const).map((item) => (
+          <TouchableOpacity key={item.title} style={styles.planItem} onPress={item.onPress} activeOpacity={0.85}>
+            <View style={styles.planIcon}><Text style={styles.planIconText}>{item.icon}</Text></View>
+            <View style={styles.planCopy}>
+              <Text style={styles.planItemTitle}>{item.title}</Text>
+              <Text style={styles.planItemSubtitle}>{item.body}</Text>
+            </View>
+            <Text style={styles.planArrow}>›</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>PRÓXIMO TREINO</Text>
@@ -184,6 +206,8 @@ export default function App() {
           recovery={recovery}
           onCheckin={() => setStage('checkin')}
           onOpenWorkout={() => setActiveTab('Treino')}
+          onOpenNutrition={() => setActiveTab('Nutrição')}
+          onOpenProgress={() => setActiveTab('Evolução')}
           onOpenAssistant={() => setActiveTab('Assistente')}
         />
       );
@@ -259,6 +283,15 @@ const styles = StyleSheet.create({
   brandName: { color: theme.colors.navy, fontWeight: '900', fontSize: 17, letterSpacing: 1.2 },
   brandTagline: { color: theme.colors.textMuted, marginTop: 2, fontSize: 11 },
   hello: { color: theme.colors.text, fontSize: 28, fontWeight: '800' },
+  planTitle: { color: theme.colors.navyDark, fontSize: 20, fontWeight: '900', marginBottom: 12 },
+  quickPlan: { backgroundColor: theme.colors.white, borderRadius: 20, borderColor: theme.colors.border, borderWidth: 1, overflow: 'hidden', marginBottom: 18 },
+  planItem: { flexDirection: 'row', gap: 12, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#EDF1F4', paddingVertical: 12, paddingHorizontal: 14 },
+  planIcon: { width: 48, height: 48, borderRadius: 13, backgroundColor: '#EAF5DA', justifyContent: 'center', alignItems: 'center' },
+  planIconText: { fontSize: 24 },
+  planCopy: { flex: 1 },
+  planItemTitle: { color: theme.colors.navy, fontWeight: '900', fontSize: 14 },
+  planItemSubtitle: { color: theme.colors.textMuted, fontSize: 11, marginTop: 4 },
+  planArrow: { color: theme.colors.navy, fontSize: 26 },
   subtitle: { color: theme.colors.textMuted, fontSize: 15, lineHeight: 22, marginTop: 6, marginBottom: 20 },
   heroCard: { backgroundColor: theme.colors.navy, borderRadius: theme.radius.lg, padding: theme.spacing.lg },
   heroEyebrow: { color: theme.colors.lime, fontSize: 11, fontWeight: '800', letterSpacing: 1.5 },
