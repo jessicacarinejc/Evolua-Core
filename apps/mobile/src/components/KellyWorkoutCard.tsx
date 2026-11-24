@@ -5,7 +5,7 @@ const days = [["Segunda","Glúteos e quadríceps",[["Agachamento livre",3,"15–
 export function KellyWorkoutCard() {
  const [day,setDay]=useState(Math.min(4,Math.max(0,new Date().getDay()-1)));
  const [done,setDone]=useState<Record<string,boolean>>({});
- const current=days[day];
+ const current=days[day] ?? days[0];
  return <View style={s.card}>
  <Text style={s.title}>Treino Kelly — Ganho de massa magra</Text>
  <Text style={s.copy}>Ficha original de 18/11/2026. Selecione o dia. Marcações temporárias nesta tela.</Text>
