@@ -14,6 +14,7 @@ import { ExerciseGuidancePreview } from '../components/ExerciseGuidancePreview';
 import { WeeklyWorkoutCard } from '../components/WeeklyWorkoutCard';
 import { WorkoutImpactCard } from '../components/WorkoutImpactCard';
 import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
+import { KellyWorkoutCard } from '../components/KellyWorkoutCard';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
 type Props = {
@@ -212,6 +213,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
             : 'O plano usa objetivo, experiência, equipamentos, dores informadas e o check-in do dia antes de selecionar exercícios.'}
         </Text>
 
+        <KellyWorkoutCard />
         {token ? <WeeklyWorkoutCard token={token} /> : null}
 
         {summary ? (
@@ -312,7 +314,8 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
       <WorkoutPhaseStrip exercises={plan.exercises} />
       <WorkoutImpactCard exercises={plan.exercises} />
 
-      {token ? <WeeklyWorkoutCard token={token} /> : null}
+      <KellyWorkoutCard />
+        {token ? <WeeklyWorkoutCard token={token} /> : null}
 
       {currentRoutine === 'calisthenics_circuit' ? (
         <View style={styles.circuitInfoCard}>
