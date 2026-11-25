@@ -38,6 +38,9 @@ jobs:
       - name: Instalar dependências
         run: npm install --no-audit --no-fund
 
+      - name: Auditar ortografia dos textos de treino
+        run: npm run auditoria:ortografia:treino
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -55,6 +58,7 @@ jobs:
           node --check scripts/e2e-local-homologation.mjs
           node --check scripts/audit-local-media.mjs
           node --check scripts/prepare-anatomy-asset.mjs
+          node --check scripts/audit-workout-copy.mjs
 
       - name: Validar Docker Compose de desenvolvimento
         run: docker compose config >/dev/null
