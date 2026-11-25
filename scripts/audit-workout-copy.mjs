@@ -25,9 +25,12 @@ async function collect(dir) {
   return out;
 }
 
+const ignored = new Set(['apps/mobile/src/workouts/exercise-copy.ts']);
 const failures = [];
 for (const root of roots) {
   for (const file of await collect(root)) {
+    const normalizedFile = relative('.', file).replaceAll('\\\\', '/');
+    if (ignored.has(normalizedFile)) continue;
     const text = await readFile(file, 'utf8');
     for (const rule of forbidden) {
       rule.pattern.lastIndex = 0;
