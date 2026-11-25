@@ -15,6 +15,7 @@ import { WeeklyWorkoutCard } from '../components/WeeklyWorkoutCard';
 import { WorkoutGuidedHero } from '../components/WorkoutGuidedHero';
 import { WorkoutImpactCard } from '../components/WorkoutImpactCard';
 import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
+import { normalizeExerciseName } from '../workouts/exercise-copy';
 import { WorkoutExecutionScreen } from './WorkoutExecutionScreen';
 
 type Props = {
@@ -327,7 +328,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
           <View style={styles.exerciseHeader}>
             <View style={styles.orderCircle}><Text style={styles.orderText}>{exercise.order}</Text></View>
             <View style={styles.exerciseTitleArea}>
-              <Text style={styles.exerciseName}>{exercise.name}</Text>
+              <Text style={styles.exerciseName}>{normalizeExerciseName(exercise.name)}</Text>
               <Text style={styles.exerciseMuscle}>{exercise.primaryMuscle}</Text>
             </View>
           </View>
@@ -341,7 +342,7 @@ export function WorkoutScreen({ token, onNeedCheckin }: Props) {
 
           {exercise.instructions ? <Text style={styles.instructions}>{exercise.instructions}</Text> : null}
           <ExerciseGuidancePreview
-            name={exercise.name}
+            name={normalizeExerciseName(exercise.name)}
             videoUrl={exercise.videoUrl}
             license={exercise.videoLicense}
             attribution={exercise.videoAttribution}
