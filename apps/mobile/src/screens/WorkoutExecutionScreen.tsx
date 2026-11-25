@@ -14,6 +14,7 @@ import { api, WorkoutSession, WorkoutSubstitutionCandidate, WorkoutSummary } fro
 import { ExerciseVideoPlayer } from '../components/ExerciseVideoPlayer';
 import { WorkoutPhaseStrip } from '../components/WorkoutPhaseStrip';
 import { WorkoutSessionControls } from '../components/WorkoutSessionControls';
+import { normalizeExerciseName } from '../workouts/exercise-copy';
 import { guidanceUrl } from '../workouts/exercise-guidance';
 import { theme } from '../theme';
 
@@ -382,7 +383,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
       onSessionChange(updated);
       setSubstitutions([]);
       setShowSafetyPanel(false);
-      Alert.alert('Exercício substituído', `${candidate.name} entrou no lugar do exercício anterior. A carga não foi transferida automaticamente.`);
+      Alert.alert('Exercício substituído', `${normalizeExerciseName(candidate.name)} entrou no lugar do exercício anterior. A carga não foi transferida automaticamente.`);
     } catch (cause) {
       Alert.alert('Troca não realizada', cause instanceof Error ? cause.message : 'Tente novamente.');
     } finally {
@@ -536,7 +537,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           {currentExercise ? (
             <View style={styles.restNextCard}>
               <Text style={styles.restNextEyebrow}>PRÓXIMO</Text>
-              <Text style={styles.restNextName}>{currentExercise.name}</Text>
+              <Text style={styles.restNextName}>{normalizeExerciseName(currentExercise.name)}</Text>
               <Text style={styles.restNextMeta}>{currentExercise.primaryMuscle}</Text>
             </View>
           ) : null}
@@ -552,13 +553,13 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
       ) : currentExercise && currentSet && !allMainCompleted ? (
         <View style={styles.currentCard}>
           <Text style={styles.exerciseOrder}>EXERCÍCIO {currentExercise.order} DE {session.exercises.length}</Text>
-          <Text style={styles.exerciseName}>{currentExercise.name}</Text>
+          <Text style={styles.exerciseName}>{normalizeExerciseName(currentExercise.name)}</Text>
           <Text style={styles.exerciseMuscle}>{currentExercise.primaryMuscle}</Text>
 
           {nextExercise ? (
             <View style={styles.nextCard}>
               <Text style={styles.nextEyebrow}>DEPOIS DESTE</Text>
-              <Text style={styles.nextName}>{nextExercise.name}</Text>
+              <Text style={styles.nextName}>{normalizeExerciseName(nextExercise.name)}</Text>
               <Text style={styles.nextMeta}>{nextExercise.primaryMuscle} · {nextExercise.plannedSets} blocos</Text>
             </View>
           ) : null}
@@ -585,7 +586,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
           {currentExercise.instructions ? <Text style={styles.instructions}>{currentExercise.instructions}</Text> : null}
 
           <ExerciseVideoPlayer
-            title={currentExercise.name}
+            title={normalizeExerciseName(currentExercise.name)}
             videoUrl={currentExercise.videoUrl ?? guidanceUrl(currentExercise.name)}
             license={currentExercise.videoLicense}
             attribution={currentExercise.videoAttribution}
@@ -639,7 +640,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
               {substitutions.map((candidate) => (
                 <View key={candidate.id} style={styles.substitutionRow}>
                   <View style={styles.substitutionTextWrap}>
-                    <Text style={styles.substitutionName}>{candidate.name}</Text>
+                    <Text style={styles.substitutionName}>{normalizeExerciseName(candidate.name)}</Text>
                     <Text style={styles.substitutionMeta}>{candidate.primaryMuscle} · {candidate.reason}</Text>
                   </View>
                   <TouchableOpacity
@@ -777,7 +778,7 @@ export function WorkoutExecutionScreen({ token, session, onSessionChange, onFini
             return (
               <View key={exercise.id} style={styles.exerciseProgressRow}>
                 <View style={styles.exerciseProgressText}>
-                  <Text style={styles.exerciseProgressName}>{exercise.order}. {exercise.name}</Text>
+                  <Text style={styles.exerciseProgressName}>{exercise.order}. {normalizeExerciseName(exercise.name)}</Text>
                   <Text style={styles.exerciseProgressMeta}>{done}/{exercise.plannedSets} blocos concluídos</Text>
                 </View>
                 <Text style={styles.exerciseProgressStatus}>{done === exercise.plannedSets ? '✓' : `${Math.round((done / exercise.plannedSets) * 100)}%`}</Text>
