@@ -10,6 +10,7 @@ on:
       - 'scripts/prepare-anatomy-asset.mjs'
       - 'scripts/generate-original-exercise-clip.py'
       - 'scripts/audit-mobile-exercise-media.mjs'
+      - 'scripts/audit-workout-copy.mjs'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/android-apk.yml'
@@ -78,6 +79,9 @@ jobs:
 
       - name: Materializar 29 clipes instrutivos offline
         run: npm run homologacao:media:prepare
+
+      - name: Auditar ortografia dos textos de treino
+        run: npm run auditoria:ortografia:treino
 
       - name: Typecheck mobile
         run: npm --workspace @evolua/mobile run typecheck
